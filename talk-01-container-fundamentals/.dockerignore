@@ -1,0 +1,49 @@
+# Build output
+**/bin/
+**/obj/
+out/
+publish/
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# IDE and editor files
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Test and coverage artifacts
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Package artifacts
+*.nupkg
+*.snupkg
+
+# Logs and diagnostics
+*.log
+*.tmp
+*.temp
+
+# Environment and secrets files
+.env
+.env.*
+secrets.json
+
+# Docker and compose overrides that are not needed for this demo build context
+docker-compose*.yml
+
+# Documentation and repo metadata not required by the image build
+.github/

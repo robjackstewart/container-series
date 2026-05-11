@@ -1,0 +1,12 @@
+# Sample Trivy ignore file for workshop discussions.
+# Only ignore findings after documenting compensating controls, expiry dates,
+# and an owner for remediation.
+
+# Example: ignored temporarily because the vulnerable code path is unused in this demo.
+CVE-2023-12345
+
+# Example: false positive caused by a transitive package that is not shipped at runtime.
+CVE-2024-23456
+
+# Example: accepted short-term risk while waiting for an upstream base image rebuild.
+CVE-2024-34567

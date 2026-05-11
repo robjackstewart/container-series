@@ -1,0 +1,45 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    base64 (0.2.0)
+    json (2.7.2)
+    logger (1.6.0)
+    multi_json (1.15.0)
+    mustermann (3.0.0)
+      ruby2_keywords (~> 0.0.1)
+    nio4r (2.7.3)
+    puma (6.4.2)
+      nio4r (~> 2.0)
+    rack (3.1.7)
+    rack-protection (4.0.0)
+      base64 (>= 0.1.0)
+      rack
+    ruby2_keywords (0.0.5)
+    sinatra (4.0.0)
+      logger (>= 1.6.0)
+      mustermann (~> 3.0)
+      rack (>= 3.0.0, < 4)
+      rack-protection (= 4.0.0)
+      tilt (~> 2.0)
+    sinatra-contrib (4.0.0)
+      multi_json
+      mustermann (~> 3.0)
+      sinatra (= 4.0.0)
+      tilt (~> 2.0)
+    tilt (2.4.0)
+
+PLATFORMS
+  ruby
+  x64-mingw-ucrt
+
+DEPENDENCIES
+  json (~> 2.0)
+  puma (~> 6.0)
+  sinatra (~> 4.0)
+  sinatra-contrib (~> 4.0)
+
+RUBY VERSION
+   ruby 3.3.0p0
+
+BUNDLED WITH
+   2.5.10

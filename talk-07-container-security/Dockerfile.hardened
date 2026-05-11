@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1
+# Hardened multi-stage build:
+# - uses a smaller builder image
+# - installs dependencies deterministically with npm ci
+# - compiles TypeScript in an isolated stage
+# - prunes dev dependencies before runtime
+# - runs on a distroless non-root image with a tiny attack surface
+
+FROM node:20-slim AS build
+
+WORKDIR /app
+
+# Copy dependency manifests first so Docker can cache dependency installation.
+COPY package*.json ./
+
+# Deterministic install from the lockfile.
+RUN npm ci
+
+# Copy only the files needed to build the application.
+COPY tsconfig.json ./
+COPY src ./src
+
+# Compile the application, then remove dev-only dependencies so the runtime image
+# contains only what the application needs to serve requests.
+RUN npm run build && npm prune --omit=dev
+
+FROM gcr.io/distroless/nodejs20-debian12
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Copy the compiled output and production dependencies only.
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./package.json
+
+# Distroless images default to a non-root user (uid 1000). Keeping the runtime user
+# unprivileged reduces the blast radius if the process is compromised.
+USER 1000
+
+EXPOSE 8080
+
+# Distroless Node images use `node` as the entrypoint, so only the script path is needed.
+CMD ["dist/index.js"]

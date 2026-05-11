@@ -1,0 +1,21 @@
+# Use a lightweight Go image to compile the program.
+# The builder stage contains the toolchain, which will not be included in the final image.
+FROM golang:1.22-alpine AS build
+
+WORKDIR /src
+
+# Copy the Go source into the build stage.
+COPY hello.go ./
+
+# Build a fully static Linux binary.
+# CGO_ENABLED=0 removes the dependency on libc so the binary can run in a scratch image.
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /hello ./hello.go
+
+# scratch is the absolute minimum base image: an empty filesystem with no shell, package manager, or userland tools.
+FROM scratch
+
+# Copy only the compiled binary into the final image.
+COPY --from=build /hello /hello
+
+# Run the binary directly.
+ENTRYPOINT ["/hello"]

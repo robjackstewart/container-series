@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: talk-12-api
+  namespace: container-series
+spec:
+  type: ClusterIP
+  selector:
+    app: talk-12-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

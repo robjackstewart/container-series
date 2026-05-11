@@ -1,0 +1,18 @@
+spin_manifest_version = 2
+
+[application]
+name = "hello-spin"
+version = "0.1.0"
+description = "A simple Spin HTTP application written in Rust"
+
+[[trigger.http]]
+route = "/..."
+component = "hello-spin"
+
+[component.hello-spin]
+source = "target/wasm32-wasi/release/hello_spin.wasm"
+allowed_outbound_hosts = []
+
+[component.hello-spin.build]
+command = "cargo build --target wasm32-wasi --release"
+watch = ["src/**/*.rs", "Cargo.toml"]

@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1.7
+
+# Start with the full SDK image because we need the compiler, restore logic, and publish tooling.
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+
+# Accept a build-time version so CI can stamp the image without hard-coding it in source.
+ARG APP_VERSION=1.0.0
+
+# Build inside a dedicated working directory to keep paths predictable.
+WORKDIR /source
+
+# Copy the project file first so package restore can be cached independently from source code changes.
+COPY src/WeatherApi.csproj ./src/
+
+# Restore dependencies with a BuildKit cache mount.
+# The NuGet package cache survives across builds on the builder, which speeds up repeated restores.
+# Because this cache lives outside the final image, it improves build performance without bloating runtime layers.
+RUN --mount=type=cache,target=/root/.nuget/packages \
+    dotnet restore ./src/WeatherApi.csproj
+
+# Copy the application source only after restore succeeds.
+# This keeps source edits from invalidating the earlier dependency restore layer.
+COPY src/. ./src/
+
+# Publish a release build and reuse the restore output from the previous step.
+# /p:UseAppHost=false avoids generating a platform-specific launcher we do not need in the container.
+RUN dotnet publish ./src/WeatherApi.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
+
+# Switch to the smaller ASP.NET Core runtime image for execution.
+# This removes the SDK from the final image and significantly reduces size and attack surface.
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+
+# Re-declare the build arg in this stage so it can be promoted into a runtime environment variable.
+ARG APP_VERSION=1.0.0
+
+# Run from a clean application directory.
+WORKDIR /app
+
+# Configure the runtime container:
+# - ASPNETCORE_URLS binds Kestrel to port 8080 inside the container
+# - ASPNETCORE_ENVIRONMENT defaults to Production
+# - APP_VERSION preserves the version stamped in at build time
+ENV ASPNETCORE_URLS=http://+:8080 \
+    ASPNETCORE_ENVIRONMENT=Production \
+    APP_VERSION=${APP_VERSION}
+
+# Copy only the published output, not the source tree or SDK artifacts.
+# This is the main win of a multi-stage build: the runtime image contains only what it needs to run.
+COPY --from=build /app/publish ./
+
+# Drop privileges and run as the built-in non-root user provided by the .NET runtime image.
+# Running as non-root is a small change that meaningfully improves the default security posture.
+USER app
+
+# Document the listening port for humans and tooling.
+EXPOSE 8080
+
+# Define the container process explicitly.
+ENTRYPOINT ["dotnet", "WeatherApi.dll"]

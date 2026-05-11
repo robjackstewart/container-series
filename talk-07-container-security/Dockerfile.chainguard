@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1
+# Chainguard images are designed for supply-chain security:
+# - minimal packages and fewer moving parts
+# - patched daily through frequent rebuilds
+# - strong provenance and SBOM story
+# - many images target zero or near-zero known CVEs at release time
+# - FIPS-ready variants are available for stricter compliance environments
+# - suitable for organizations that care about hardened defaults and compliance
+
+# Use the -dev variant for the build stage because it includes the tooling needed to
+# install dependencies and compile TypeScript. The pure runtime image is even smaller.
+FROM cgr.dev/chainguard/node:latest-dev AS build
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY tsconfig.json ./
+COPY src ./src
+
+RUN npm run build && npm prune --omit=dev
+
+# Runtime stage: the non-dev Chainguard image keeps the footprint small and aligns
+# with the talk's message around hardened, minimal, fast-patched base images.
+FROM cgr.dev/chainguard/node:latest
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=8080
+
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./package.json
+
+# Chainguard images run as a non-root user by default, which is one of the simplest
+# and highest-impact container hardening steps.
+USER nonroot
+
+EXPOSE 8080
+CMD ["dist/index.js"]

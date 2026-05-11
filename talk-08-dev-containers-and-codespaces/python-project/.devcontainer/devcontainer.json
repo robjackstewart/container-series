@@ -1,0 +1,24 @@
+{
+  "name": "Python Flask API",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "forwardPorts": [5000],
+  "postCreateCommand": "pip install -r requirements.txt",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-python.pylint", "ms-python.black-formatter"],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "editor.formatOnSave": true,
+        "[python]": {"editor.defaultFormatter": "ms-python.black-formatter"}
+      }
+    }
+  },
+  "containerEnv": {
+    "FLASK_ENV": "development",
+    "PORT": "5000"
+  }
+}

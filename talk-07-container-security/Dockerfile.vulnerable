@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1
+# ⚠️ VULNERABLE DOCKERFILE - DO NOT USE IN PRODUCTION
+# This image is intentionally insecure and exists only to demonstrate
+# what scanners and reviewers should flag during the talk.
+
+# BAD: The tag is broad and unpinned. "node:18" can change over time, pulls in a
+# large general-purpose base image, and expands the attack surface with packages the
+# app does not need.
+FROM node:18
+
+# Fine on its own, but everything that follows compounds the risk.
+WORKDIR /app
+
+# BAD: Build args are visible in image history. Secrets passed this way are easy to
+# recover with tools such as `docker history`.
+ARG API_KEY=dummy
+
+# BAD: Promoting the build arg into ENV bakes the secret into the final image.
+# Anyone with the image can inspect it later.
+ENV API_KEY=${API_KEY}
+
+# BAD: Blindly copying the entire build context often includes secrets, .git history,
+# local config, test artifacts, and node_modules. There is also no .dockerignore.
+COPY . .
+
+# BAD: `npm install` is non-deterministic compared with `npm ci`, can drift from the
+# lockfile, and installs far more than a production runtime needs.
+RUN npm install
+
+# BAD: Explicitly running as root makes privilege escalation and container breakout
+# scenarios much worse, especially if the container is also granted extra capabilities.
+USER root
+
+# Exposing a port is not a vulnerability by itself, but in this intentionally poor
+# example it contributes to a container that is reachable and over-privileged.
+EXPOSE 3000
+
+# BAD: The container assumes a compiled dist/ folder exists and keeps root as the
+# runtime user. If an attacker gains code execution, they start from the most powerful
+# account inside the container.
+CMD ["node", "dist/index.js"]

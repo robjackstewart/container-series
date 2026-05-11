@@ -1,0 +1,17 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: order-service
+
+logging:
+  level:
+    root: INFO
+    com.example.orderservice: DEBUG
+    org.springframework.web: INFO
+    org.springframework.boot.actuate: INFO
+
+app:
+  dapr:
+    enabled: ${DAPR_ENABLED:false}

@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: Container Series Dashboards
+    orgId: 1
+    folder: Container Series
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

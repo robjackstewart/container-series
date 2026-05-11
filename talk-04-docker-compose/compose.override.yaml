@@ -1,0 +1,40 @@
+services:
+  api:
+    environment:
+      DEBUG: "true"
+      GIN_MODE: debug
+    ports:
+      - "2345:2345"
+    volumes:
+      - ./api:/src
+    develop:
+      watch:
+        - action: sync
+          path: ./api
+          target: /src
+        - action: rebuild
+          path: ./api/go.mod
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    profiles:
+      - debug
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5050:80"
+    networks:
+      - backend

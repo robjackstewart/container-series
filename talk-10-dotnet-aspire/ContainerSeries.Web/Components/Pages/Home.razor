@@ -1,0 +1,87 @@
+@page "/"
+@inject HttpClient Http
+
+<PageTitle>Container Series Aspire Demo</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="mb-1">.NET Aspire Demo</h1>
+            <p class="text-muted mb-0">API + OrderService + NotificationService + PostgreSQL + Redis + RabbitMQ</p>
+        </div>
+        <button class="btn btn-primary" @onclick="LoadOrdersAsync">Refresh orders</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+    else if (_orders is null)
+    {
+        <p>Loading orders...</p>
+    }
+    else
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h5">Recent orders</h2>
+
+                @if (_orders.Count == 0)
+                {
+                    <p class="mb-0">No orders yet. Use the API to POST to <code>/orders</code>.</p>
+                }
+                else
+                {
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>Customer</th>
+                                <th>Product</th>
+                                <th>Quantity</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var order in _orders)
+                        {
+                            <tr>
+                                <td>@order.Id</td>
+                                <td>@order.CustomerName</td>
+                                <td>@order.ProductName</td>
+                                <td>@order.Quantity</td>
+                                <td>@order.Status</td>
+                                <td>@order.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<OrderView>? _orders;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadOrdersAsync();
+
+    private async Task LoadOrdersAsync()
+    {
+        try
+        {
+            _error = null;
+            _orders = await Http.GetFromJsonAsync<List<OrderView>>("/orders") ?? new List<OrderView>();
+        }
+        catch (Exception ex)
+        {
+            _orders = [];
+            _error = $"Could not load orders from the API: {ex.Message}";
+        }
+    }
+
+    private sealed record OrderView(int Id, string CustomerName, string ProductName, int Quantity, string Status, DateTimeOffset CreatedAtUtc);
+}

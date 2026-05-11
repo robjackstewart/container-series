@@ -1,0 +1,18 @@
+{
+  "name": "Go Fullstack",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "api",
+  "workspaceFolder": "/workspace",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {"version": "1.22"},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [8080, 5432],
+  "postCreateCommand": "cd /workspace/fullstack-project/api && go mod download",
+  "customizations": {
+    "vscode": {
+      "extensions": ["golang.go"],
+      "settings": {"go.toolsManagement.autoUpdate": true}
+    }
+  }
+}

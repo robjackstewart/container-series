@@ -1,0 +1,43 @@
+services:
+  api:
+    environment:
+      DB_NAME: itemsdb_test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+
+  postgres:
+    environment:
+      POSTGRES_DB: itemsdb_test
+
+  redis:
+
+  db-migrate:
+    image: postgres:16-alpine
+    profiles:
+      - test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-secretpassword}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        until pg_isready -h postgres -U ${POSTGRES_USER:-appuser} -d itemsdb_test; do sleep 1; done
+        psql -h postgres -U ${POSTGRES_USER:-appuser} -d itemsdb_test -v ON_ERROR_STOP=1 <<'SQL'
+        CREATE TABLE IF NOT EXISTS items (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_items_name ON items(name);
+        SQL
+    networks:
+      - backend

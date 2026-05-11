@@ -1,0 +1,16 @@
+services:
+  api:
+    build: ../api
+    volumes: ["../..:/workspace:cached"]
+    command: sleep infinity
+    environment:
+      DATABASE_URL: postgres://devuser:devpass@db:5432/devdb
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: devuser
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: devdb
+    volumes: ["devdata:/var/lib/postgresql/data", "../db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro"]
+volumes:
+  devdata:

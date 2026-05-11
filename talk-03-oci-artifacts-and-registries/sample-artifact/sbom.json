@@ -1,0 +1,50 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "serialNumber": "urn:uuid:6f1dc78a-cf5f-4d2d-bfb4-1bb3d619f9d1",
+  "metadata": {
+    "timestamp": "2025-01-15T12:00:00Z",
+    "tools": [
+      {
+        "vendor": "container-series",
+        "name": "manual-demo-generator",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "talk03-r-plumber-api",
+      "version": "1.0.0",
+      "description": "Sample R Plumber API packaged for the OCI artifacts and registries talk.",
+      "purl": "pkg:docker/talk03-r-plumber-api@1.0.0"
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "name": "plumber",
+      "version": "1.2.2",
+      "purl": "pkg:cran/plumber@1.2.2"
+    },
+    {
+      "type": "library",
+      "name": "jsonlite",
+      "version": "1.8.8",
+      "purl": "pkg:cran/jsonlite@1.8.8"
+    },
+    {
+      "type": "library",
+      "name": "httpuv",
+      "version": "1.6.15",
+      "purl": "pkg:cran/httpuv@1.6.15"
+    },
+    {
+      "type": "container",
+      "name": "rocker/r-ver",
+      "version": "4.3.0",
+      "purl": "pkg:docker/rocker/r-ver@4.3.0"
+    }
+  ],
+  "vulnerabilities": []
+}

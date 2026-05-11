@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-spin
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hello-spin
+  template:
+    metadata:
+      labels:
+        app: hello-spin
+    spec:
+      runtimeClassName: wasmtime-spin-v2  # <-- This is the magic line
+      containers:
+        - name: hello-spin
+          image: ghcr.io/example/hello-spin:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "10m"  # Wasm is VERY lightweight
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
