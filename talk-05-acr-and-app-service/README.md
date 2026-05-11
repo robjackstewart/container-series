@@ -1,90 +1,138 @@
 # Azure Container Registry & App Service Deployment
 
-Talk 5 focuses on packaging a Rust + Actix-web API, storing images in Azure Container Registry (ACR), and deploying them to Azure App Service for Containers with managed identity.
+Talk 5 shows how to package a Rust + Actix-web API, publish it to Azure Container Registry (ACR), and run it on Azure App Service for Containers using production-friendly patterns such as managed identity, deployment slots, diagnostics, and Infrastructure as Code.
 
 ## Prerequisites
 
-- Talks 1-4 completed or understood
-- Azure CLI installed and signed in with `az login`
-- Docker installed locally
-- An Azure subscription with permission to create ACR, App Service, and monitoring resources
-- Basic familiarity with Rust and Actix-web
+- Talks 1-4 completed or understood:
+  - Talk 1: container fundamentals
+  - Talk 2: runtime configuration
+  - Talk 3: OCI artifacts and registries
+  - Talk 4: Docker Compose
+- [Azure CLI](https://learn.microsoft.com/cli/azure/) installed
+- An active Azure subscription
+- Docker installed locally for the push-based demos
+- Rust toolchain (optional for local app development)
 
-## Project contents
+## Talk outline (~60 minutes)
 
-- `src/` - Actix-web todo API
-- `Dockerfile` - multi-stage Rust container build
-- `infra/` - Bicep deployment for ACR + App Service + monitoring
-- `scripts/` - helper scripts for deployment and ACR Tasks demos
+1. **ACR overview**: Basic, Standard, and Premium tiers; when geo-replication matters.
+2. **Authentication**: admin user vs service principal vs managed identity (**prefer managed identity**).
+3. **`az acr login` and image push flow**: build locally, tag correctly, and push into ACR.
+4. **ACR Tasks**: quick tasks with `az acr build`, triggered tasks on Git commits or base image updates, and scheduled tasks.
+5. **Repository management and retention policies**: repos, tags, manifests, and cleanup.
+6. **Deploying to Azure App Service for Containers**: run the image on a Linux web app.
+7. **Continuous deployment via ACR webhook**: auto-refresh App Service when a new tag is pushed.
+8. **Deployment slots**: validate in staging and swap to production with zero downtime.
+9. **App Service logging and diagnostics**: container logs, app logs, live tailing, and troubleshooting.
+10. **Infrastructure as Code with Bicep**: provision ACR, App Service Plan, Web App, and role assignments repeatably.
 
-## 60-minute talk outline
+## Demo application
 
-### 1) ACR overview (Basic / Standard / Premium)
+This talk uses a small Rust + Actix-web todo API with:
 
-Azure Container Registry is a private OCI registry for images and other artifacts.
+- `GET /health`
+- `GET /info`
+- `GET /todos`
+- `POST /todos`
+- `GET /todos/{id}`
+- `PUT /todos/{id}`
+- `DELETE /todos/{id}`
 
-- **Basic**: lowest cost, smaller storage and throughput, fine for demos and low-volume dev workloads.
-- **Standard**: higher throughput and storage, good default for team environments.
-- **Premium**: adds advanced networking and enterprise features such as geo-replication and private endpoints.
-- **Geo-replication**: Premium feature that keeps replicas close to the regions where you deploy, reducing pull latency and improving resiliency.
+The service is intentionally simple so the focus stays on image publishing and platform deployment.
 
-Create a Standard registry:
+## 1) ACR overview
+
+Azure Container Registry is Microsoft's private OCI registry service for container images and related artifacts.
+
+### Tiers
+
+- **Basic**: cheapest option; suitable for small demos and low-throughput scenarios.
+- **Standard**: better throughput and storage; a strong default for team environments.
+- **Premium**: adds advanced features such as geo-replication, private endpoints, and enterprise governance options.
+
+### Geo-replication
+
+Geo-replication is a Premium feature that places registry replicas in multiple Azure regions. This reduces image pull latency and improves resilience for globally distributed deployments.
+
+Create a registry for this talk:
 
 ```bash
 az acr create \
-  --name mycontainerseriesacr \
-  --resource-group rg-container-series \
+  --name containerseriesacr \
+  --resource-group container-series-rg \
   --sku Standard \
   --admin-enabled false
 ```
 
-- `--sku Standard` picks the middle tier used in this talk.
-- `--admin-enabled false` avoids shared registry credentials.
+Explanation:
 
-Check registry details:
+- `az acr create` provisions a new Azure Container Registry.
+- `--sku Standard` selects the tier used in this talk.
+- `--admin-enabled false` disables shared username/password credentials.
+
+Inspect the registry:
 
 ```bash
 az acr show \
-  --name mycontainerseriesacr \
-  --resource-group rg-container-series \
+  --name containerseriesacr \
+  --resource-group container-series-rg \
   --output table
 ```
 
-This confirms the login server, SKU, and provisioning status.
+Explanation:
 
-### 2) Authentication: admin user vs service principal vs managed identity
+- `az acr show` returns registry metadata.
+- `--output table` makes the result easy to demo live.
 
-You have three common ways to authenticate to ACR:
+## 2) Authentication: admin user vs service principal vs managed identity
 
-1. **Admin user** - easy for demos, but it creates long-lived username/password credentials. Avoid for production.
-2. **Service principal** - better than admin user for automation, but still requires secret or certificate management.
-3. **Managed identity** - preferred for Azure-hosted workloads because Azure manages identity lifecycle and you assign roles directly.
+There are three common ways to authenticate to ACR:
 
-Enable the admin user only if you absolutely need it for a lab:
+### Admin user
+
+Easy for demos, but not recommended for production because it introduces long-lived shared credentials.
 
 ```bash
 az acr update \
-  --name mycontainerseriesacr \
+  --name containerseriesacr \
   --admin-enabled true
 ```
 
-Create a service principal with AcrPush:
+Explanation:
+
+- Enables the built-in admin username/password for the registry.
+- Use sparingly; avoid this for production apps.
+
+### Service principal
+
+Good for CI/CD systems that run outside Azure, but it still requires secret or certificate management.
 
 ```bash
-ACR_ID=$(az acr show --name mycontainerseriesacr --query id -o tsv)
+ACR_ID=$(az acr show --name containerseriesacr --resource-group container-series-rg --query id -o tsv)
 
 az ad sp create-for-rbac \
-  --name sp-acr-push \
+  --name sp-container-series-acr-push \
   --role AcrPush \
   --scopes "$ACR_ID"
 ```
 
-Recommended App Service pattern: enable a managed identity on the web app and grant `AcrPull` on the registry:
+Explanation:
+
+- The first command captures the registry resource ID.
+- `az ad sp create-for-rbac` creates an identity that can push images.
+- `AcrPush` grants both push and pull rights.
+
+### Managed identity (**preferred**)
+
+Managed identity is the best option for Azure-hosted workloads such as App Service because Azure manages the identity lifecycle for you.
+
+Assign a system-managed identity to a web app and grant it `AcrPull`:
 
 ```bash
 PRINCIPAL_ID=$(az webapp identity assign \
-  --name my-todo-api \
-  --resource-group rg-container-series \
+  --name container-series-talk05 \
+  --resource-group container-series-rg \
   --query principalId -o tsv)
 
 az role assignment create \
@@ -94,154 +142,208 @@ az role assignment create \
   --scope "$ACR_ID"
 ```
 
-This removes the need to store registry passwords in app settings.
+Explanation:
 
-### 3) `az acr login` and pushing images
+- `az webapp identity assign` enables a system-assigned managed identity.
+- `az role assignment create` gives the app permission to pull from ACR.
+- No registry password needs to be stored in app settings.
 
-Authenticate Docker to the registry:
+## 3) `az acr login` and pushing images to ACR
 
-```bash
-az acr login --name mycontainerseriesacr
-```
-
-Get the registry login server:
+Log Docker into the registry:
 
 ```bash
-ACR_LOGIN_SERVER=$(az acr show \
-  --name mycontainerseriesacr \
-  --query loginServer -o tsv)
+az acr login --name containerseriesacr
 ```
 
-Build, tag, and push the Rust API image:
+Explanation:
+
+- This authenticates your local Docker client against ACR using your Azure login.
+
+Fetch the ACR login server:
 
 ```bash
-docker build -t talk05-todo-api:v1 .
-docker tag talk05-todo-api:v1 "$ACR_LOGIN_SERVER/talk05-todo-api:v1"
-docker push "$ACR_LOGIN_SERVER/talk05-todo-api:v1"
+ACR_LOGIN_SERVER=$(az acr show --name containerseriesacr --query loginServer -o tsv)
 ```
 
-- `docker build` produces the local image.
-- `docker tag` rewrites the image reference to the ACR login server.
-- `docker push` uploads the image layers to ACR.
+Explanation:
 
-List repositories and tags:
+- `loginServer` is the fully qualified registry hostname used in image tags.
+
+Build and push the Rust API image:
+
+```bash
+docker build -t rust-todo-api:latest .
+docker tag rust-todo-api:latest "$ACR_LOGIN_SERVER/rust-todo-api:latest"
+docker push "$ACR_LOGIN_SERVER/rust-todo-api:latest"
+```
+
+Explanation:
+
+- `docker build` builds the local image.
+- `docker tag` rewrites the image reference so it targets ACR.
+- `docker push` uploads the image layers to the registry.
+
+Verify repository contents:
 
 ```bash
 az acr repository list \
-  --name mycontainerseriesacr \
+  --name containerseriesacr \
   --output table
 
 az acr repository show-tags \
-  --name mycontainerseriesacr \
-  --repository talk05-todo-api \
+  --name containerseriesacr \
+  --repository rust-todo-api \
+  --orderby time_desc \
   --output table
 ```
 
-### 4) ACR Tasks
+Explanation:
 
-ACR Tasks let Azure build images for you in the cloud.
+- `repository list` shows repos in the registry.
+- `show-tags` confirms which versions are available to deploy.
 
-#### Quick task
+## 4) ACR Tasks
+
+ACR Tasks move builds into Azure, which is great for cloud-native workflows and CI/CD.
+
+### Quick task: build directly in ACR
 
 ```bash
 az acr build \
-  --registry mycontainerseriesacr \
-  --image talk05-todo-api:latest \
-  .
+  --registry containerseriesacr \
+  --image rust-todo-api:{{.Run.ID}} \
+  --file talk-05-acr-and-app-service/Dockerfile \
+  talk-05-acr-and-app-service/
 ```
 
-This uploads the current directory to Azure and runs the container build in ACR.
+Explanation:
 
-#### Triggered task on Git commits
+- `az acr build` uploads the build context and performs the Docker build in Azure.
+- `{{.Run.ID}}` tags each build with its ACR Task run ID.
+- This eliminates the need for a local Docker daemon or self-hosted build agent.
+
+### Triggered task: Git commit trigger
 
 ```bash
 az acr task create \
-  --registry mycontainerseriesacr \
-  --name talk05-commit-build \
-  --context https://github.com/your-org/your-repo.git \
-  --file Dockerfile \
-  --image talk05-todo-api:{{.Run.ID}} \
-  --branch main \
-  --git-access-token <git-token> \
-  --commit-trigger-enabled true \
+  --registry containerseriesacr \
+  --name build-on-push \
+  --image rust-todo-api:{{.Run.ID}} \
+  --context https://github.com/YOUR_ORG/container-series \
+  --file talk-05-acr-and-app-service/Dockerfile \
+  --git-access-token YOUR_PAT_TOKEN
+```
+
+Explanation:
+
+- Creates a task linked to a Git repository.
+- Each new commit can trigger a fresh image build.
+- Replace `YOUR_ORG` and `YOUR_PAT_TOKEN` with real values before use.
+
+### Triggered task: base image updates
+
+```bash
+az acr task update \
+  --registry containerseriesacr \
+  --name build-on-push \
   --base-image-trigger-enabled true
 ```
 
-- `--commit-trigger-enabled true` rebuilds on source changes.
-- `--base-image-trigger-enabled true` rebuilds when the base image publishes updates.
+Explanation:
 
-#### Scheduled task
+- Rebuilds your image when the base image publishes security or runtime updates.
+
+### Scheduled task
 
 ```bash
 az acr task create \
-  --registry mycontainerseriesacr \
-  --name talk05-nightly-build \
-  --context https://github.com/your-org/your-repo.git \
-  --file Dockerfile \
-  --image talk05-todo-api:nightly \
+  --registry containerseriesacr \
+  --name nightly-rebuild \
+  --image rust-todo-api:nightly \
+  --context https://github.com/YOUR_ORG/container-series \
+  --file talk-05-acr-and-app-service/Dockerfile \
   --schedule "0 2 * * *"
 ```
 
-This runs every day at 02:00 UTC.
+Explanation:
 
-Inspect runs and logs:
+- Runs a rebuild every day at 02:00.
+- Useful for drift control and regular refreshes.
+
+### View task history and logs
 
 ```bash
-az acr task list-runs \
-  --registry mycontainerseriesacr \
-  --output table
+az acr task list-runs --registry containerseriesacr --output table
 
-az acr task logs \
-  --registry mycontainerseriesacr \
-  --run-id <run-id>
+LAST_RUN=$(az acr task list-runs --registry containerseriesacr --query '[0].runId' -o tsv)
+az acr task logs --registry containerseriesacr --run-id "$LAST_RUN"
 ```
 
-### 5) Repository management and retention policies
+Explanation:
+
+- `list-runs` shows recent executions.
+- `task logs` helps explain build failures during demos.
+
+## 5) Repository management and retention policies
 
 List repositories:
 
 ```bash
-az acr repository list \
-  --name mycontainerseriesacr \
+az acr repository list --name containerseriesacr --output table
+```
+
+List tags for one repository:
+
+```bash
+az acr repository show-tags \
+  --name containerseriesacr \
+  --repository rust-todo-api \
+  --orderby time_desc \
   --output table
 ```
 
-Show manifests for a repository:
+Inspect manifest metadata:
 
 ```bash
 az acr manifest list-metadata \
-  --registry mycontainerseriesacr \
-  --name talk05-todo-api \
+  --registry containerseriesacr \
+  --name rust-todo-api \
   --output table
 ```
 
-Delete an old tag:
+Delete an old image tag:
 
 ```bash
 az acr repository delete \
-  --name mycontainerseriesacr \
-  --image talk05-todo-api:old \
+  --name containerseriesacr \
+  --image rust-todo-api:old \
   --yes
 ```
 
-Retention policies help clean up untagged manifests automatically. They are most relevant in Premium-tier governance conversations:
+Enable retention for untagged manifests:
 
 ```bash
 az acr config retention update \
-  --registry mycontainerseriesacr \
-  --status Enabled \
+  --registry containerseriesacr \
+  --status enabled \
   --days 7 \
   --type UntaggedManifests
 ```
 
-### 6) Deploying to Azure App Service for Containers
+Explanation:
+
+- Repository commands help you inspect and manage published images.
+- Retention policies prevent stale artifacts from accumulating indefinitely.
+
+## 6) Deploying to Azure App Service for Containers
 
 Create a Linux App Service plan:
 
 ```bash
 az appservice plan create \
-  --name talk05-plan \
-  --resource-group rg-container-series \
+  --name container-series-plan \
+  --resource-group container-series-rg \
   --sku B1 \
   --is-linux
 ```
@@ -250,93 +352,103 @@ Create the web app:
 
 ```bash
 az webapp create \
-  --name my-todo-api \
-  --resource-group rg-container-series \
-  --plan talk05-plan
+  --name container-series-talk05 \
+  --resource-group container-series-rg \
+  --plan container-series-plan
 ```
 
 Configure the container image:
 
 ```bash
 az webapp config container set \
-  --name my-todo-api \
-  --resource-group rg-container-series \
-  --container-image-name "$ACR_LOGIN_SERVER/talk05-todo-api:v1"
+  --name container-series-talk05 \
+  --resource-group container-series-rg \
+  --docker-custom-image-name "$ACR_LOGIN_SERVER/rust-todo-api:latest"
 ```
 
-Configure the app to listen on port 8080:
+Set required app settings:
 
 ```bash
 az webapp config appsettings set \
-  --name my-todo-api \
-  --resource-group rg-container-series \
-  --settings WEBSITES_PORT=8080 ENVIRONMENT=production APP_VERSION=v1
+  --name container-series-talk05 \
+  --resource-group container-series-rg \
+  --settings WEBSITES_PORT=8080 ENVIRONMENT=production APP_VERSION=latest RUST_LOG=info
 ```
 
-When managed identity is used for image pulls, the platform authenticates to ACR without registry secrets.
+Explanation:
 
-### 7) Continuous deployment via ACR webhook
+- App Service runs the container as a managed web workload.
+- `WEBSITES_PORT=8080` tells the platform which container port should receive traffic.
+- The app settings also drive `/info` and runtime logging.
+
+## 7) Continuous deployment via ACR webhook
 
 Enable container continuous deployment:
 
 ```bash
 az webapp deployment container config \
   --enable-cd true \
-  --name my-todo-api \
-  --resource-group rg-container-series
+  --name container-series-talk05 \
+  --resource-group container-series-rg
 ```
 
-App Service creates an ACR webhook so a new image push can trigger an app restart and image refresh.
-
-Check deployment webhook state:
+Show the continuous deployment webhook URL:
 
 ```bash
 az webapp deployment container show-cd-url \
-  --name my-todo-api \
-  --resource-group rg-container-series
+  --name container-series-talk05 \
+  --resource-group container-series-rg
 ```
 
-### 8) Deployment slots: staging -> production swap
+Explanation:
+
+- App Service creates and manages the webhook integration.
+- When a new image is pushed, App Service can automatically restart and pull the updated image.
+
+## 8) Deployment slots: staging → production swap
 
 Create a staging slot:
 
 ```bash
 az webapp deployment slot create \
-  --name my-todo-api \
-  --resource-group rg-container-series \
+  --name container-series-talk05 \
+  --resource-group container-series-rg \
   --slot staging
 ```
 
-Point the slot at a candidate image:
+Deploy a candidate image to staging:
 
 ```bash
 az webapp config container set \
-  --name my-todo-api \
-  --resource-group rg-container-series \
+  --name container-series-talk05 \
+  --resource-group container-series-rg \
   --slot staging \
-  --container-image-name "$ACR_LOGIN_SERVER/talk05-todo-api:v2"
+  --docker-custom-image-name "$ACR_LOGIN_SERVER/rust-todo-api:candidate"
 ```
 
 Swap staging into production:
 
 ```bash
 az webapp deployment slot swap \
-  --name my-todo-api \
-  --resource-group rg-container-series \
+  --name container-series-talk05 \
+  --resource-group container-series-rg \
   --slot staging \
   --target-slot production
 ```
 
-Slots reduce risk by letting you validate before the production cutover.
+Explanation:
 
-### 9) App Service logging and diagnostics
+- Slots let you validate a new container before exposing it publicly.
+- The swap operation supports zero-downtime releases.
 
-Enable filesystem logging:
+## 9) App Service logging and diagnostics
+
+Enable application and container logging:
 
 ```bash
 az webapp log config \
-  --name my-todo-api \
-  --resource-group rg-container-series \
+  --name container-series-talk05 \
+  --resource-group container-series-rg \
   --docker-container-logging filesystem \
   --application-logging filesystem \
   --level information
@@ -346,72 +458,74 @@ Tail logs live:
 
 ```bash
 az webapp log tail \
-  --name my-todo-api \
-  --resource-group rg-container-series
+  --name container-series-talk05 \
+  --resource-group container-series-rg
 ```
 
-Query the app URL:
+Get the live hostname:
 
 ```bash
 az webapp show \
-  --name my-todo-api \
-  --resource-group rg-container-series \
+  --name container-series-talk05 \
+  --resource-group container-series-rg \
   --query defaultHostName -o tsv
 ```
 
-Use Application Insights for request tracing, dependency tracking, failures, and live metrics.
+Explanation:
 
-### 10) Infrastructure as Code with Bicep
+- `az webapp log config` enables useful runtime diagnostics.
+- `az webapp log tail` is great for live demos and incident triage.
+- `az webapp show` returns the hostname used for `/health` and `/info` verification.
 
-Deploy everything in one shot:
+## 10) Infrastructure as Code with Bicep
+
+Deploy the full environment from the included Bicep template:
 
 ```bash
+az group create --name container-series-rg --location uksouth
+
 az deployment group create \
-  --resource-group rg-container-series \
+  --resource-group container-series-rg \
   --template-file infra/main.bicep \
   --parameters @infra/parameters.json \
-  --parameters acrName=mycontainerseriesacr \
-               appServicePlanName=talk05-plan \
-               webAppName=my-todo-api \
-               location=eastus \
-               imageName=talk05-todo-api \
-               imageTag=v1
+  --parameters imageTag=latest
 ```
 
-This template creates:
+Explanation:
 
-- Azure Container Registry (Standard)
-- Linux App Service Plan (B1)
-- Web App for Containers
-- System-assigned managed identity
-- `AcrPull` role assignment on the registry
-- Log Analytics + Application Insights
-- Required app settings such as `WEBSITES_PORT`, `ENVIRONMENT`, and `APP_VERSION`
+- `az group create` ensures the resource group exists.
+- `az deployment group create` provisions ACR, the Linux App Service plan, the Web App, and the `AcrPull` role assignment.
+- The template enables managed identity-based pulls from ACR.
 
-## Demo flow suggestion
+## Suggested demo flow
 
 1. Run the API locally with `cargo run`.
-2. Build and test the container with `docker build`.
-3. Create ACR and push the image.
-4. Deploy infra with Bicep.
-5. Verify `https://<app>.azurewebsites.net/health`.
-6. Push a new image and show continuous deployment.
-7. Use a staging slot, validate `/info`, then swap.
+2. Build the image locally with Docker.
+3. Push the image into ACR.
+4. Use Bicep to create the registry, plan, app, and role assignment.
+5. Browse to `https://<app>.azurewebsites.net/health`.
+6. Enable continuous deployment and push a new image.
+7. Validate a staging slot and perform a swap.
+8. Review logs and diagnostics.
 
 ## Key takeaways
 
-- ACR is the secure home for private container images in Azure.
-- Prefer **managed identity** over admin users and long-lived secrets.
-- `az acr build` is a great option when you do not want local Docker builds in CI.
-- App Service for Containers gives a simple PaaS path for containerized web apps.
-- Deployment slots and diagnostics help you ship safely.
-- Bicep keeps the environment repeatable and reviewable.
+1. **ACR Tasks eliminate the need for local Docker builds.**
+2. **Managed identity is the preferred authentication method for ACR.**
+3. **App Service continuous deployment auto-updates on image push.**
+4. **Deployment slots enable zero-downtime releases.**
 
-## Bonus: ACR Artifact Streaming
+## Bonus / Niche Corner: ACR Artifact Streaming
 
-ACR Artifact Streaming reduces cold-start pull time by streaming image data on demand instead of waiting for every layer to download before start-up. It is useful for large images, scale-out events, and globally distributed workloads. If you need faster startup for containerized apps, it is worth tracking as an advanced ACR capability alongside geo-replication and tasks.
+- **ACR Artifact Streaming** reduces cold start times for large images by streaming image content on demand instead of waiting for every layer to download up front.
+- **Image quarantine policies** can help enforce security review or scanning gates before images are promoted for runtime use.
+- **ACR Teleport integration with AKS** is worth watching for advanced startup-performance and cluster image-delivery scenarios.
 
-## Helpful scripts
+## Included files
 
-- `scripts/deploy.sh` - end-to-end resource group, ACR, push, Bicep deploy, and health check
-- `scripts/acr-tasks.sh` - quick build, Git-triggered task, scheduled task, run listing, and log lookup
+- `src/` - Rust Actix-web API
+- `Dockerfile` - multi-stage production container build
+- `infra/main.bicep` - ACR + App Service + managed identity deployment
+- `infra/parameters.json` - sample deployment parameters
+- `scripts/deploy.sh` - end-to-end deployment helper
+- `scripts/acr-tasks.sh` - ACR Tasks and repository management examples

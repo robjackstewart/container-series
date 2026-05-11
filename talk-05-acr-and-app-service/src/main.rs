@@ -1,53 +1,52 @@
-mod handlers;
-mod models;
+use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger};
+use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
+use uuid::Uuid;
+use chrono::Utc;
 
-use actix_web::{middleware::Logger, web, App, HttpServer};
-use handlers::{
-    create_todo, delete_todo, get_todo, get_todos, health, info, update_todo, AppState,
-};
-use std::{
-    env,
-    sync::{Arc, Mutex},
-};
+mod models;
+mod handlers;
+
+use models::Todo;
+
+pub struct AppState {
+    pub todos: Mutex<Vec<Todo>>,
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let port: u16 = port.parse().expect("PORT must be a number");
+    
+    log::info!("Starting server on port {}", port);
+    log::info!("Environment: {}", std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()));
+    log::info!("Version: {}", std::env::var("APP_VERSION").unwrap_or_else(|_| "unknown".to_string()));
 
-    let port = env::var("PORT")
-        .ok()
-        .and_then(|value| value.parse::<u16>().ok())
-        .unwrap_or(8080);
-    let app_version = env::var("APP_VERSION").unwrap_or_else(|_| "0.1.0".to_string());
-    let environment = env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
-
-    let shared_state = web::Data::new(AppState {
-        todos: Arc::new(Mutex::new(Vec::new())),
-        app_version: app_version.clone(),
-        environment: environment.clone(),
+    let data = web::Data::new(AppState {
+        todos: Mutex::new(vec![
+            Todo {
+                id: Uuid::new_v4().to_string(),
+                title: "Learn Rust".to_string(),
+                description: Some("Build something great with Rust".to_string()),
+                completed: false,
+                created_at: Utc::now().to_rfc3339(),
+            },
+        ]),
     });
-
-    log::info!(
-        "Starting todo API on 0.0.0.0:{port} (version={app_version}, environment={environment})"
-    );
 
     HttpServer::new(move || {
         App::new()
+            .app_data(data.clone())
             .wrap(Logger::default())
-            .app_data(shared_state.clone())
-            .route("/health", web::get().to(health))
-            .route("/info", web::get().to(info))
-            .service(
-                web::resource("/todos")
-                    .route(web::get().to(get_todos))
-                    .route(web::post().to(create_todo)),
-            )
-            .service(
-                web::resource("/todos/{id}")
-                    .route(web::get().to(get_todo))
-                    .route(web::put().to(update_todo))
-                    .route(web::delete().to(delete_todo)),
-            )
+            .route("/health", web::get().to(handlers::health))
+            .route("/info", web::get().to(handlers::info))
+            .route("/todos", web::get().to(handlers::get_todos))
+            .route("/todos", web::post().to(handlers::create_todo))
+            .route("/todos/{id}", web::get().to(handlers::get_todo))
+            .route("/todos/{id}", web::put().to(handlers::update_todo))
+            .route("/todos/{id}", web::delete().to(handlers::delete_todo))
     })
     .bind(("0.0.0.0", port))?
     .run()

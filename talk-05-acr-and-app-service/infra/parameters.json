@@ -2,23 +2,11 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "acrName": {
-      "value": "containerseriesacr12345"
-    },
-    "appServicePlanName": {
-      "value": "container-series-talk05-plan"
-    },
-    "webAppName": {
-      "value": "container-series-talk05-web"
-    },
-    "location": {
-      "value": "eastus"
-    },
-    "imageName": {
-      "value": "talk05-todo-api"
-    },
-    "imageTag": {
-      "value": "v1"
-    }
+    "acrName": { "value": "containerseriesacr" },
+    "appServicePlanName": { "value": "container-series-plan" },
+    "webAppName": { "value": "container-series-talk05" },
+    "location": { "value": "uksouth" },
+    "imageName": { "value": "rust-todo-api" },
+    "imageTag": { "value": "latest" }
   }
 }

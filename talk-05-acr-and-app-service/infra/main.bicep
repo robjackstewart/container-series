@@ -1,23 +1,22 @@
-@description('Globally unique Azure Container Registry name.')
+@description('Name for the Azure Container Registry')
 param acrName string
 
-@description('Name of the Linux App Service plan.')
+@description('Name for the App Service Plan')
 param appServicePlanName string
 
-@description('Globally unique Web App name.')
+@description('Name for the Web App')
 param webAppName string
 
-@description('Azure region for all resources.')
+@description('Azure region for all resources')
 param location string = resourceGroup().location
 
-@description('Repository name inside Azure Container Registry.')
-param imageName string
+@description('Container image name (without registry prefix)')
+param imageName string = 'rust-todo-api'
 
-@description('Container image tag to deploy.')
+@description('Container image tag')
 param imageTag string = 'latest'
 
-var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-
+// Azure Container Registry
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
   location: location
@@ -25,94 +24,60 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
     name: 'Standard'
   }
   properties: {
-    adminUserEnabled: false
+    adminUserEnabled: false  // Use managed identity instead!
     publicNetworkAccess: 'Enabled'
   }
 }
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+// App Service Plan (Linux)
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: appServicePlanName
   location: location
   kind: 'linux'
   sku: {
     name: 'B1'
     tier: 'Basic'
-    size: 'B1'
-    capacity: 1
   }
   properties: {
-    reserved: true
+    reserved: true  // Required for Linux
   }
 }
 
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
-  name: '${webAppName}-logs'
-  location: location
-  properties: {
-    sku: {
-      name: 'PerGB2018'
-    }
-    retentionInDays: 30
-  }
-}
-
-resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: '${webAppName}-appi'
-  location: location
-  kind: 'web'
-  properties: {
-    Application_Type: 'web'
-    WorkspaceResourceId: logAnalyticsWorkspace.id
-  }
-}
-
-resource webApp 'Microsoft.Web/sites@2023-12-01' = {
+// Web App for Containers
+resource webApp 'Microsoft.Web/sites@2023-01-01' = {
   name: webAppName
   location: location
-  kind: 'app,linux,container'
   identity: {
-    type: 'SystemAssigned'
+    type: 'SystemAssigned'  // Managed identity for ACR pull
   }
   properties: {
     serverFarmId: appServicePlan.id
-    httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'DOCKER|${acr.properties.loginServer}/${imageName}:${imageTag}'
-      alwaysOn: true
-      ftpsState: 'Disabled'
-      acrUseManagedIdentityCreds: true
+      acrUseManagedIdentityCreds: true  // Use managed identity to pull from ACR
       appSettings: [
-        {
-          name: 'WEBSITES_PORT'
-          value: '8080'
-        }
-        {
-          name: 'ENVIRONMENT'
-          value: 'production'
-        }
-        {
-          name: 'APP_VERSION'
-          value: imageTag
-        }
-        {
-          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: appInsights.properties.ConnectionString
-        }
+        { name: 'DOCKER_REGISTRY_SERVER_URL', value: 'https://${acr.properties.loginServer}' }
+        { name: 'WEBSITES_PORT', value: '8080' }
+        { name: 'ENVIRONMENT', value: 'production' }
+        { name: 'APP_VERSION', value: imageTag }
+        { name: 'RUST_LOG', value: 'info' }
       ]
     }
+    httpsOnly: true
   }
 }
 
-resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acr.id, webApp.id, 'acr-pull')
+// Grant AcrPull role to Web App managed identity
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(acr.id, webApp.id, 'AcrPull')
   scope: acr
   properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')  // AcrPull
     principalId: webApp.identity.principalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: acrPullRoleDefinitionId
   }
 }
 
 output acrLoginServer string = acr.properties.loginServer
 output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
-output applicationInsightsConnectionString string = appInsights.properties.ConnectionString
+output webAppPrincipalId string = webApp.identity.principalId

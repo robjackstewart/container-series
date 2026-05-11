@@ -1,56 +1,72 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+# ACR Tasks Examples - Build images in Azure without local Docker
 
-REGISTRY="${REGISTRY:-containerseriesacr12345}"
-IMAGE_NAME="${IMAGE_NAME:-myapp}"
-GIT_REPO_URL="${GIT_REPO_URL:-https://github.com/your-org/your-repo.git}"
-GIT_ACCESS_TOKEN="${GIT_ACCESS_TOKEN:-replace-me}"
-QUICK_TASK_NAME="${QUICK_TASK_NAME:-talk05-commit-build}"
-SCHEDULED_TASK_NAME="${SCHEDULED_TASK_NAME:-talk05-nightly-build}"
-RUN_ID="${RUN_ID:-}"
+REGISTRY_NAME="containerseriesacr"
+RESOURCE_GROUP="container-series-rg"
+GITHUB_REPO="https://github.com/YOUR_ORG/container-series"
+IMAGE_NAME="rust-todo-api"
 
-# 1. Quick task: send the current source context to Azure and let ACR build the image remotely.
+echo "=== ACR Tasks ==="
+
+# 1. Quick task: Build directly in ACR (no local Docker needed!)
+echo "Quick task: build in ACR..."
 az acr build \
-  --registry "$REGISTRY" \
-  --image "$IMAGE_NAME:latest" \
-  .
-
-# 2. Triggered task: automatically rebuild when a commit lands in the Git repository.
-#    The access token can be a GitHub PAT stored in an environment variable.
-az acr task create \
-  --registry "$REGISTRY" \
-  --name "$QUICK_TASK_NAME" \
-  --context "$GIT_REPO_URL" \
-  --file Dockerfile \
+  --registry "$REGISTRY_NAME" \
   --image "$IMAGE_NAME:{{.Run.ID}}" \
-  --branch main \
-  --git-access-token "$GIT_ACCESS_TOKEN" \
-  --commit-trigger-enabled true \
+  --file talk-05-acr-and-app-service/Dockerfile \
+  talk-05-acr-and-app-service/
+
+# 2. Create a triggered task (runs on git push)
+echo "Creating git-triggered task..."
+az acr task create \
+  --registry "$REGISTRY_NAME" \
+  --name "build-on-push" \
+  --image "$IMAGE_NAME:{{.Run.ID}}" \
+  --context "$GITHUB_REPO" \
+  --file "talk-05-acr-and-app-service/Dockerfile" \
+  --git-access-token "YOUR_PAT_TOKEN"
+
+# 3. Create a scheduled task (e.g., nightly rebuild for base image updates)
+echo "Creating scheduled task..."
+az acr task create \
+  --registry "$REGISTRY_NAME" \
+  --name "nightly-rebuild" \
+  --image "$IMAGE_NAME:nightly" \
+  --context "$GITHUB_REPO" \
+  --file "talk-05-acr-and-app-service/Dockerfile" \
+  --schedule "0 2 * * *"  # 2 AM daily
+
+# 4. List task runs
+echo "Listing task runs..."
+az acr task list-runs --registry "$REGISTRY_NAME" --output table
+
+# 5. View logs of last run
+echo "Viewing last run logs..."
+LAST_RUN=$(az acr task list-runs --registry "$REGISTRY_NAME" --query '[0].runId' -o tsv)
+az acr task logs --registry "$REGISTRY_NAME" --run-id "$LAST_RUN"
+
+# 6. Enable base image update triggers
+# When mcr.microsoft.com/dotnet/runtime:8.0 updates, rebuild automatically
+az acr task update \
+  --registry "$REGISTRY_NAME" \
+  --name "build-on-push" \
   --base-image-trigger-enabled true
 
-# 3. Scheduled task: rebuild on a cron schedule, useful for nightly validation or cache warming.
-az acr task create \
-  --registry "$REGISTRY" \
-  --name "$SCHEDULED_TASK_NAME" \
-  --context "$GIT_REPO_URL" \
-  --file Dockerfile \
-  --image "$IMAGE_NAME:nightly" \
-  --schedule "0 2 * * *"
+echo "=== Repository Management ==="
 
-# 4. List task runs so you can inspect recent build history.
-az acr task list-runs \
-  --registry "$REGISTRY" \
+# 7. List repositories
+az acr repository list --name "$REGISTRY_NAME" --output table
+
+# 8. List tags for an image
+az acr repository show-tags \
+  --name "$REGISTRY_NAME" \
+  --repository "$IMAGE_NAME" \
+  --orderby time_desc \
   --output table
 
-# 5. Show logs for a specific run when RUN_ID is provided.
-if [[ -n "$RUN_ID" ]]; then
-  az acr task logs \
-    --registry "$REGISTRY" \
-    --run-id "$RUN_ID"
-else
-  echo "Set RUN_ID to inspect logs for a specific task run."
-fi
-
-# 6. Base image update trigger note:
-#    --base-image-trigger-enabled true tells ACR Tasks to rebuild automatically when a parent image changes,
-#    helping you pick up security patches from rust:1.75-slim or debian:bookworm-slim without waiting for app code changes.
+# 9. Set retention policy (delete untagged manifests after 7 days)
+az acr config retention update \
+  --registry "$REGISTRY_NAME" \
+  --status enabled \
+  --days 7 \
+  --type UntaggedManifests
