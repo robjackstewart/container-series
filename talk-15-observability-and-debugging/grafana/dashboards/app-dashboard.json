@@ -1,20 +1,10 @@
 {
+  "__inputs": [],
+  "__requires": [],
   "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": {
-          "type": "grafana",
-          "uid": "-- Grafana --"
-        },
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
+    "list": []
   },
+  "description": "Container Series Talk 15 - Elixir Phoenix Observability",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -27,15 +17,6 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -45,124 +26,28 @@
       "id": 1,
       "options": {
         "legend": {
+          "calcs": [],
           "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+          "placement": "bottom"
         },
         "tooltip": {
           "mode": "single",
           "sort": "none"
         }
       },
+      "title": "Phoenix HTTP Request Duration (p99)",
+      "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(app_http_requests_total[1m]))",
-          "legendFormat": "requests/sec",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum(rate(app_http_request_duration_milliseconds_bucket[5m])) by (le))",
+          "legendFormat": "p99 latency (ms)",
           "refId": "A"
         }
-      ],
-      "title": "HTTP Request Rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "id": 2,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(app_http_request_duration_milliseconds_bucket[5m])) by (le))",
-          "legendFormat": "p95 latency",
-          "refId": "A"
-        }
-      ],
-      "title": "HTTP Request Duration (p95)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 5
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 3,
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "auto",
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "expr": "100 * sum(rate(app_http_errors_total[5m])) / clamp_min(sum(rate(app_http_requests_total[5m])), 0.0001)",
-          "refId": "A"
-        }
-      ],
-      "title": "Error Rate",
-      "type": "stat"
+      ]
     },
     {
       "datasource": {
@@ -173,47 +58,42 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 0
       },
-      "id": 4,
+      "id": 2,
       "options": {
         "dedupStrategy": "none",
         "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showLabels": true,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
         "sortOrder": "Descending",
         "wrapLogMessage": false
       },
+      "title": "Application Logs",
+      "type": "logs",
       "targets": [
         {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
           "expr": "{job=\"container-logs\"}",
+          "legendFormat": "",
           "queryType": "range",
           "refId": "A"
         }
-      ],
-      "title": "Container Logs",
-      "type": "logs"
+      ]
     }
   ],
   "refresh": "10s",
-  "schemaVersion": 39,
-  "style": "dark",
+  "schemaVersion": 38,
   "tags": [
-    "containers",
-    "observability",
-    "phoenix"
+    "container-series",
+    "elixir",
+    "observability"
   ],
-  "templating": {
-    "list": []
-  },
-  "time": {
-    "from": "now-15m",
-    "to": "now"
-  },
-  "timepicker": {},
-  "timezone": "browser",
-  "title": "Container Observability & Debugging",
-  "uid": "talk15-observability",
-  "version": 1,
-  "weekStart": ""
+  "title": "Container Series - Talk 15",
+  "uid": "container-series-talk-15",
+  "version": 1
 }

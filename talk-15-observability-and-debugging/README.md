@@ -1,86 +1,74 @@
 # Container Observability & Debugging
 
-Talk 15 focuses on making containers understandable in production: what they log, how they emit metrics and traces, and how to debug them when things go wrong. The demo stack uses an Elixir / Phoenix API running in containers with Fluent Bit, Loki, OpenTelemetry, Prometheus, Jaeger, and Grafana.
+Talk 15 focuses on making containerised systems observable and debuggable in production. The demo stack uses an Elixir / Phoenix JSON API, OpenTelemetry, Prometheus, Fluent Bit, Loki, Jaeger, and Grafana.
 
 ## Prerequisites
 
 - Talks 1-14 in this series
-- Docker Engine / Docker Desktop with Docker Compose v2
-- Elixir + Phoenix installed locally **optional** for editing or experimenting outside containers
-- `curl` for generating sample traffic
-- `kubectl` for the Kubernetes debugging examples
+- Docker Compose v2
+- `curl` for generating traffic
+- `jq` for a few inspection examples (optional)
+- `kubectl` for the Kubernetes debugging examples (optional)
 
-Everything in the runnable demo is designed to execute in containers.
-
-## What this talk includes
-
-- A Phoenix-style JSON API with health, readiness, metrics, and item endpoints
-- Structured JSON request logging to stdout
-- Prometheus-compatible metrics at `/metrics`
-- OpenTelemetry spans exported to the OTel Collector
-- Fluent Bit log forwarding into Loki
-- Grafana datasources and a starter dashboard
-- Command references for day-to-day container debugging and post-mortem inspection
-
-## Talk outline (~60 minutes)
+## Talk Outline (~60 mins)
 
 1. **Three pillars of observability: logs, metrics, traces**  
-   Explain what each pillar answers: logs tell stories, metrics show trends, traces explain request flow.
+   Logs explain what happened, metrics show trends, and traces reveal request flow.
 2. **Container logging: stdout/stderr convention, Docker logging drivers**  
-   Show why container apps should write logs to stdout/stderr and let the platform collect them.
-3. **Structured logging (JSON) for machine parsing**  
-   Demonstrate JSON logs that are easy to filter, aggregate, and enrich.
+   Use stdout/stderr as the contract and let the platform route logs with drivers like `json-file`, `syslog`, and `fluentd`.
+3. **Structured JSON logging for machine parsing**  
+   Emit JSON logs so tools can search by status code, request id, path, duration, and custom fields.
 4. **Log aggregation: Fluent Bit -> Loki**  
-   Route container logs into a searchable backend.
-5. **OpenTelemetry: SDK, auto-instrumentation, OTel Collector**  
-   Introduce the SDK in the app and centralize export through a collector.
-6. **Distributed tracing: spans, traces, context propagation**  
-   Trace requests through the Phoenix API and discuss baggage/context headers.
-7. **Metrics: Prometheus scraping, custom metrics**  
-   Scrape `/metrics` and graph request rate, latency, and errors.
-8. **Grafana: dashboards, Loki logs, Tempo traces, Mimir metrics**  
-   Use Grafana as the single glass pane. This demo ships with Prometheus + Jaeger, but the same patterns extend to Mimir and Tempo.
-9. **Debugging containers: `docker exec`, `docker logs`, `docker cp`**  
-   Cover the first-response tools every engineer reaches for.
-10. **`docker debug`: debugging distroless containers**  
-    Explain how toolbox-style debugging helps when a container has no shell.
-11. **`kubectl debug`: ephemeral containers in Kubernetes**  
-    Show how to attach a debug container to a live pod.
-12. **Post-mortem debugging: `docker commit` on stopped container**  
-    Capture state for later analysis.
-13. **Container forensics: `docker diff`**  
-    Inspect file-system drift and runtime changes.
+   Forward container logs into Loki for centralised search and correlation.
+5. **OpenTelemetry: SDK, traces, metrics, OTel Collector**  
+   Instrument the app once, export through the collector, and keep your backend choice flexible.
+6. **Distributed tracing: spans, traces, context propagation across services**  
+   Model each request as a trace made up of spans, and carry context between services.
+7. **Metrics: Prometheus scraping, custom metrics with Telemetry**  
+   Scrape `/metrics` and emit application-specific measurements.
+8. **Grafana: Loki (logs), Jaeger (traces), Prometheus (metrics) dashboards**  
+   Use Grafana as the shared operations console.
+9. **Debugging running containers: `docker exec`, `docker logs`, `docker cp`, `docker stats`**  
+   Start with the core runtime inspection commands.
+10. **`docker debug`: debug distroless containers without a shell**  
+    Attach a toolbox environment to minimal images.
+11. **`kubectl debug`: ephemeral debug containers in Kubernetes**  
+    Add a temporary helper container to a live pod.
+12. **Post-mortem: `docker commit` on stopped container for forensics**  
+    Preserve state after a failure for later analysis.
+13. **`docker diff`: see what changed at runtime**  
+    Inspect filesystem drift inside a container.
 
-## Architecture
+## Demo Architecture
 
 ```text
 Phoenix API -> stdout JSON logs -> Fluent Bit -> Loki -> Grafana
-           -> OTel spans/metrics -> OTel Collector -> Jaeger + Prometheus -> Grafana
+           -> OTel traces/metrics -> OTel Collector -> Jaeger + Prometheus -> Grafana
 ```
 
-## Project layout
+## Project Layout
 
 ```text
-src/                     Phoenix-style Elixir application
-compose.yaml             Demo stack
+src/                     Elixir / Phoenix application
+compose.yaml             Full observability stack
 otel-collector-config.yaml
 prometheus.yml
 fluent-bit.conf
-grafana/                 Datasources and dashboard provisioning
+grafana/                 Datasource and dashboard provisioning
 scripts/                 Setup and debugging helpers
 ```
 
-## Quick start
+## Quick Start
 
-### 1. Build and start the stack
+### 1. Start the stack
 
 ```bash
 docker compose up -d --build
 ```
 
-Builds the Phoenix image, starts the OTel Collector, Prometheus, Loki, Jaeger, Grafana, and Fluent Bit, and wires them onto one network.
+Builds the Phoenix image, starts the observability services, and wires everything onto one bridge network.
 
-### 2. Confirm the API is healthy
+### 2. Check health endpoints
 
 ```bash
 curl http://localhost:4000/health
@@ -88,9 +76,9 @@ curl http://localhost:4000/ready
 ```
 
 - `/health` confirms the process is alive.
-- `/ready` is the readiness endpoint you can later map to orchestrator probes.
+- `/ready` is the readiness endpoint for orchestrators.
 
-### 3. Generate traces, logs, and metrics
+### 3. Generate demo traffic
 
 ```bash
 curl http://localhost:4000/items
@@ -101,161 +89,97 @@ curl http://localhost:4000/items/1
 curl http://localhost:4000/metrics
 ```
 
-These requests create:
+These requests generate:
 
-- JSON request logs on stdout
-- custom Prometheus counters and histograms
-- OpenTelemetry spans for the item endpoints
+- structured logs in stdout
+- spans in Jaeger
+- metrics for Prometheus and Grafana
 
-### 4. Open the UIs
+### 4. Open the dashboards
 
 - Grafana: <http://localhost:3000>
-- Prometheus: <http://localhost:9090>
 - Jaeger: <http://localhost:16686>
+- Prometheus: <http://localhost:9090>
 - App API: <http://localhost:4000>
 
-## Commands and what they show
+## Commands and Explanations
 
-### Logs
+### `docker compose up -d --build`
+Builds the application image and starts the complete observability stack in detached mode.
 
-```bash
-docker logs app --follow --tail 100
-```
+### `docker logs talk-15-app-1 --follow --tail 100`
+Streams the latest app logs. Because the app emits JSON to stdout, you can filter and parse fields reliably.
 
-Streams the latest application logs. Because the app writes structured JSON to stdout, log pipelines can parse fields like method, path, duration, and status.
+### `docker logs talk-15-app-1 2>&1 | grep '"level":"error"'`
+Searches for error-level entries. Structured logging makes this simple and predictable.
 
-### Live shell into a running container
+### `docker exec -it talk-15-app-1 sh`
+Opens a shell in the running app container. Useful for verifying the release layout, env vars, and runtime files.
 
-```bash
-docker exec -it app sh
-```
+### `docker cp talk-15-app-1:/app/releases/RELEASES ./extracted-releases.txt`
+Copies a file out of the container for offline inspection.
 
-Useful for quick inspection, checking environment variables, or confirming the release layout inside the container.
+### `docker cp ./debug-config.txt talk-15-app-1:/tmp/debug-config.txt`
+Copies a file into the container for temporary debugging experiments.
 
-### Copy a file out of a container
+### `docker stats talk-15-app-1 --no-stream`
+Shows CPU, memory, network, and block I/O for a quick resource triage.
 
-```bash
-docker cp app:/app/releases/0.1.0/sys.config ./extracted-sys.config
-```
+### `docker inspect talk-15-app-1 | jq '.[0] | {State, NetworkSettings: .NetworkSettings.IPAddress, Mounts}'`
+Prints key runtime metadata: state, IP address, and mounted volumes.
 
-Helpful when you need to inspect generated runtime configuration without rebuilding the image.
+### `docker diff talk-15-app-1`
+Shows filesystem changes since the container started. `A` = added, `C` = changed, `D` = deleted.
 
-### Inspect resource usage
+### `docker debug talk-15-app-1`
+Attaches Docker's toolbox container to a running container, which is ideal for distroless or ultra-minimal images that do not contain a shell.
 
-```bash
-docker stats app --no-stream
-```
+### `kubectl logs -n container-series deploy/app --follow --tail 100`
+Streams logs from a Kubernetes deployment.
 
-Shows CPU, memory, and I/O at a glance.
+### `kubectl exec -it -n container-series pod/app-xxx -- sh`
+Executes a shell in a pod when a shell exists in the image.
 
-### Inspect container configuration
+### `kubectl debug -it pod/app-xxx --image=busybox:1.36 --target=app -n container-series`
+Adds an ephemeral debug container to the pod. This is the Kubernetes equivalent of toolbox-style debugging.
 
-```bash
-docker inspect app | jq '.[] | {State, NetworkSettings, Mounts}'
-```
+### `docker commit stopped-container-name talk-15-debug-image`
+Preserves the filesystem of a stopped container for post-mortem investigation.
 
-Shows the container state, IP/network wiring, and mounted volumes.
+### `docker run -it --entrypoint sh talk-15-debug-image`
+Starts a shell in the committed image so you can inspect the preserved state.
 
-### Search logs in Loki from Grafana
+## Logging Drivers in Context
 
-Use the **Explore** view in Grafana with this query:
+- **`json-file`**: Docker's default local log storage. Good for simple local debugging.
+- **`syslog`**: Forward logs to a syslog receiver. Common in traditional infrastructure.
+- **`fluentd`**: Send logs straight to collectors like Fluent Bit or Fluentd for enrichment and shipping.
 
-```logql
-{job="container-logs"}
-```
+This demo uses the `fluentd` logging driver for the app container and Fluent Bit forwards those logs into Loki.
 
-This filters to the logs sent by Fluent Bit.
+## OpenTelemetry Flow
 
-### Inspect traces in Jaeger
+1. Phoenix handlers create spans around requests.
+2. Controller actions add attributes such as item ids and item counts.
+3. The OpenTelemetry Collector receives telemetry over OTLP.
+4. Jaeger stores traces and Prometheus scrapes metrics.
+5. Grafana visualises logs, traces, and metrics side by side.
 
-Open Jaeger and search for the `elixir-phoenix-app` service. The `items.list`, `items.show`, `items.create`, and `items.delete` spans make request flow visible.
+## Key Takeaways
 
-### Inspect raw Prometheus metrics
+1. Always log to stdout/stderr - let the platform handle routing.
+2. OpenTelemetry provides vendor-neutral instrumentation.
+3. `docker debug` and `kubectl debug` enable debugging even distroless containers.
+4. Structured logging + distributed tracing = fast incident resolution.
 
-```bash
-curl http://localhost:4000/metrics
-```
+## Bonus / Niche Corner: Debugging Distroless & Ephemeral Containers
 
-Returns Prometheus exposition text, including the custom request counters and latency histogram.
+- **`docker debug` (Docker Desktop)**: attach a toolbox to a running container without rebuilding it.
+- **`nsenter` on Linux**: join a container's namespaces directly from the host for deeper investigation.
+- **Container forensics with `docker diff`**: identify files added, changed, or deleted at runtime.
+- **CRIU checkpoint/restore (experimental)**: capture and restore container state for advanced troubleshooting workflows.
 
-## Debugging workflows
+## Helpful Scripts
 
-### Basic container debugging
-
-1. `docker logs` for symptoms
-2. `docker inspect` for wiring and env vars
-3. `docker exec` for live investigation
-4. `docker cp` for evidence collection
-5. `docker stats` for quick resource triage
-
-### Debugging minimal or distroless images
-
-`docker exec` only works when a shell exists in the image. If your production image is distroless, use:
-
-```bash
-docker debug app
-```
-
-`docker debug` attaches a toolbox environment to the target container so you can inspect processes, files, and network state without rebuilding the image.
-
-### Kubernetes debugging with ephemeral containers
-
-```bash
-kubectl debug -it pod/app-xxx --image=busybox --target=app
-```
-
-This starts a temporary debug container in the same pod and namespace context, which is ideal when the main container has no shell or package manager.
-
-### Post-mortem debugging
-
-```bash
-docker commit stopped-app app-debug
-docker run -it --entrypoint sh app-debug
-```
-
-Use this when a container has already crashed and you want to preserve its filesystem state for offline investigation.
-
-### Filesystem forensics
-
-```bash
-docker diff app
-```
-
-Shows which files were added, changed, or deleted since container start.
-
-## Monitoring flow in this demo
-
-- **Phoenix app** emits JSON logs and spans.
-- **Fluent Bit** receives Docker log events and forwards them to **Loki**.
-- **OTel Collector** receives OTLP telemetry and fans out traces and metrics.
-- **Prometheus** scrapes metrics.
-- **Jaeger** stores traces.
-- **Grafana** visualizes metrics, logs, and traces from one place.
-
-## Key takeaways
-
-- Containers should log to stdout/stderr and let the platform route logs.
-- JSON logs are much easier to query than free-form text.
-- Metrics show trends; traces explain why a single request was slow.
-- The OTel Collector decouples apps from backends and simplifies routing.
-- Debugging is faster when you know the escalation path: logs -> inspect -> exec/debug -> forensic tools.
-
-## Bonus topics
-
-### Debugging distroless images
-
-- Prefer `docker debug` over rebuilding a special shell-enabled image.
-- In Kubernetes, use `kubectl debug` with an ephemeral toolbox container.
-
-### CRIU checkpoint / restore
-
-Checkpoint/restore can freeze a running container, save its state, and restore it later. It is useful for advanced migrations, forensic capture, and experimentation, though support depends on the runtime, kernel, and host configuration.
-
-### Tempo and Mimir in production
-
-This sample uses Jaeger and Prometheus because they are easy to demo. In larger platforms, Grafana Tempo and Grafana Mimir provide horizontally scalable trace and metrics backends while keeping the same observability concepts.
-
-## Helper scripts
-
-- `scripts/setup-monitoring.sh` brings the stack up and generates sample traffic.
-- `scripts/debug-examples.sh` is a command reference for live demos.
+- `scripts/setup-monitoring.sh` starts the stack and generates sample load.
+- `scripts/debug-examples.sh` is a reference sheet of day-to-day debugging commands.

@@ -1,80 +1,60 @@
 defmodule AppWeb.ItemController do
-  use AppWeb, :controller
+  use Phoenix.Controller, formats: [:json]
+  require OpenTelemetry.Tracer, as: Tracer
+  require Logger
 
   alias App.ItemStore
-  require Logger
-  require OpenTelemetry.Tracer, as: Tracer
 
   def index(conn, _params) do
     Tracer.with_span "items.list" do
-      items = ItemStore.get_all()
+      items = ItemStore.all()
       Tracer.set_attributes([{"items.count", length(items)}])
-      Logger.info(Jason.encode!(%{event: "items.list", count: length(items)}))
+      Logger.info("Listed items", count: length(items))
       json(conn, items)
     end
   end
 
-  def show(conn, %{"id" => id}) do
-    Tracer.with_span "items.show" do
-      with {:ok, parsed_id} <- parse_id(id) do
-        Tracer.set_attributes([{"item.id", parsed_id}])
+  def show(conn, %{"id" => id_str}) do
+    case Integer.parse(id_str) do
+      {id, ""} ->
+        Tracer.with_span "items.show", %{attributes: [{"item.id", id}]} do
+          case ItemStore.get(id) do
+            nil ->
+              Logger.warning("Item not found", item_id: id)
+              conn |> put_status(404) |> json(%{error: "Item not found", id: id})
 
-        case ItemStore.get(parsed_id) do
-          nil ->
-            conn
-            |> put_status(:not_found)
-            |> json(%{error: "Not found"})
-
-          item ->
-            json(conn, item)
+            item ->
+              json(conn, item)
+          end
         end
-      else
-        :error ->
-          conn
-          |> put_status(:bad_request)
-          |> json(%{error: "Invalid item id"})
-      end
+
+      _ ->
+        conn |> put_status(400) |> json(%{error: "Invalid item id", id: id_str})
     end
   end
 
   def create(conn, params) do
     Tracer.with_span "items.create" do
-      item = %{
-        id: ItemStore.next_id(),
-        name: Map.get(params, "name", "Unnamed"),
-        description: Map.get(params, "description", "")
-      }
-
+      id = ItemStore.next_id()
+      item = %{id: id, name: params["name"] || "Unnamed", description: params["description"] || ""}
       ItemStore.add(item)
-      Tracer.set_attributes([{"item.id", item.id}])
-      Logger.info(Jason.encode!(Map.put(item, :event, "items.create")))
-
-      conn
-      |> put_status(:created)
-      |> json(item)
+      Tracer.set_attributes([{"item.id", id}, {"item.name", item.name}])
+      Logger.info("Item created", item_id: id, item_name: item.name)
+      conn |> put_status(201) |> json(item)
     end
   end
 
-  def delete(conn, %{"id" => id}) do
-    Tracer.with_span "items.delete" do
-      with {:ok, parsed_id} <- parse_id(id) do
-        case ItemStore.delete(parsed_id) do
-          true -> send_resp(conn, :no_content, "")
-          false -> conn |> put_status(:not_found) |> json(%{error: "Not found"})
+  def delete(conn, %{"id" => id_str}) do
+    case Integer.parse(id_str) do
+      {id, ""} ->
+        Tracer.with_span "items.delete", %{attributes: [{"item.id", id}]} do
+          ItemStore.delete(id)
+          Logger.info("Item deleted", item_id: id)
+          send_resp(conn, 204, "")
         end
-      else
-        :error ->
-          conn
-          |> put_status(:bad_request)
-          |> json(%{error: "Invalid item id"})
-      end
-    end
-  end
 
-  defp parse_id(id) do
-    case Integer.parse(id) do
-      {parsed_id, ""} -> {:ok, parsed_id}
-      _ -> :error
+      _ ->
+        conn |> put_status(400) |> json(%{error: "Invalid item id", id: id_str})
     end
   end
 end

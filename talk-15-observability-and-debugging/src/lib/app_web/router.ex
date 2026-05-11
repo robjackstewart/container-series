@@ -1,5 +1,5 @@
 defmodule AppWeb.Router do
-  use AppWeb, :router
+  use Phoenix.Router
 
   pipeline :api do
     plug :accepts, ["json"]
@@ -11,6 +11,10 @@ defmodule AppWeb.Router do
     get "/health", HealthController, :index
     get "/ready", HealthController, :ready
     get "/metrics", MetricsController, :index
-    resources "/items", ItemController, only: [:index, :show, :create, :delete]
+
+    get "/items", ItemController, :index
+    post "/items", ItemController, :create
+    get "/items/:id", ItemController, :show
+    delete "/items/:id", ItemController, :delete
   end
 end

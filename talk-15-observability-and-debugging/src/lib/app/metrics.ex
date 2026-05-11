@@ -8,9 +8,7 @@ defmodule App.Metrics do
   @error_counter :app_http_errors_total
   @duration_histogram :app_http_request_duration_milliseconds
 
-  def start_link(arg) do
-    Supervisor.start_link(__MODULE__, arg, name: __MODULE__)
-  end
+  def start_link(arg), do: Supervisor.start_link(__MODULE__, arg, name: __MODULE__)
 
   @impl true
   def init(_arg) do
@@ -29,9 +27,7 @@ defmodule App.Metrics do
     end
   end
 
-  def export do
-    Prometheus.Format.Text.format()
-  end
+  def export, do: Prometheus.Format.Text.format()
 
   defp declare_metrics do
     safe_declare(fn ->

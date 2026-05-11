@@ -12,13 +12,15 @@ defmodule App.MixProject do
   end
 
   def application do
-    [mod: {App.Application, []}, extra_applications: [:logger, :runtime_tools]]
+    [
+      mod: {App.Application, []},
+      extra_applications: [:logger, :runtime_tools]
+    ]
   end
 
   defp deps do
     [
       {:phoenix, "~> 1.7"},
-      {:phoenix_live_view, "~> 0.20"},
       {:plug_cowboy, "~> 2.7"},
       {:jason, "~> 1.4"},
       {:telemetry_metrics, "~> 0.6"},
