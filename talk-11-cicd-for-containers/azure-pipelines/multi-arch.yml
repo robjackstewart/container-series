@@ -1,0 +1,75 @@
+# Azure Pipelines — Multi-architecture build
+#
+# Triggered manually or on semver tags. Builds linux/amd64 and linux/arm64
+# images using Docker Buildx with QEMU emulation, then pushes a multi-arch
+# manifest list to ACR.
+#
+# Setup in Azure DevOps:
+#   1. Create a Docker Registry service connection named "acr-connection".
+#   2. Create an Azure Resource Manager service connection named "azure-connection".
+#   3. Create a variable group named "talk-11-secrets" containing:
+#        ACR_LOGIN_SERVER  — e.g. myregistry.azurecr.io
+#        ACR_NAME          — e.g. myregistry
+#   4. Trigger by pushing a tag matching v* (e.g. git tag v1.2.3 && git push --tags).
+
+trigger:
+  tags:
+    include:
+      - v*
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: talk-11-secrets
+  - name: imageName
+    value: container-series/talk-11
+  - name: workingDirectory
+    value: talk-11-cicd-for-containers
+
+jobs:
+  - job: MultiArchBuild
+    displayName: Build and push multi-arch image
+    steps:
+      - script: |
+          sudo apt-get update -qq
+          sudo apt-get install -y qemu-user-static binfmt-support
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+        displayName: Install QEMU for cross-platform emulation
+
+      - script: |
+          docker buildx create --use --name multiarch-builder --driver docker-container
+          docker buildx inspect --bootstrap
+        displayName: Create Buildx builder
+
+      - task: AzureCLI@2
+        displayName: Log in to ACR
+        inputs:
+          azureSubscription: azure-connection
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: az acr login --name $(ACR_NAME)
+
+      - script: |
+          IMAGE_TAG=$(Build.SourceBranchName)   # e.g. v1.2.3
+          REGISTRY=$(ACR_LOGIN_SERVER)
+          REPO=$REGISTRY/$(imageName)
+
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --provenance=true \
+            --sbom=true \
+            --push \
+            --tag $REPO:$(Build.SourceVersion) \
+            --tag $REPO:$IMAGE_TAG \
+            --cache-from type=registry,ref=$REPO:buildcache \
+            --cache-to   type=registry,ref=$REPO:buildcache,mode=max \
+            $(workingDirectory)
+        displayName: Buildx multi-arch build and push
+
+      - script: |
+          docker buildx imagetools inspect \
+            $(ACR_LOGIN_SERVER)/$(imageName):$(Build.SourceBranchName)
+        displayName: Inspect manifest list

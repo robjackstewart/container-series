@@ -1,0 +1,84 @@
+# Azure Pipelines — CI (pull request validation)
+#
+# Runs on every pull request targeting main. Tests the application,
+# builds the container image and scans it with Trivy.
+#
+# Setup in Azure DevOps:
+#   1. Create a pipeline pointing at this file.
+#   2. Create a Docker Registry service connection named "acr-connection"
+#      that targets your Azure Container Registry.
+
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - talk-11-cicd-for-containers/**
+      - azure-pipelines/ci.yml
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  pythonVersion: '3.12'
+  workingDirectory: talk-11-cicd-for-containers
+
+stages:
+  - stage: Test
+    displayName: Test application
+    jobs:
+      - job: RunTests
+        displayName: Run pytest
+        steps:
+          - task: UsePythonVersion@0
+            displayName: Use Python $(pythonVersion)
+            inputs:
+              versionSpec: $(pythonVersion)
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r src/requirements.txt pytest pytest-asyncio httpx
+            displayName: Install dependencies
+            workingDirectory: $(workingDirectory)
+
+          - script: pytest tests/ -v --junitxml=test-results.xml
+            displayName: Run tests
+            workingDirectory: $(workingDirectory)
+
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            condition: always()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: '**/test-results.xml'
+              mergeTestResults: true
+              failTaskOnFailedTests: true
+
+  - stage: BuildAndScan
+    displayName: Build and scan image
+    dependsOn: Test
+    jobs:
+      - job: BuildScan
+        displayName: Build image and run Trivy
+        steps:
+          - task: Docker@2
+            displayName: Build image (no push)
+            inputs:
+              command: build
+              Dockerfile: $(workingDirectory)/Dockerfile
+              buildContext: $(workingDirectory)
+              tags: myapp:$(Build.SourceVersion)
+              addPipelineData: false
+
+          - script: |
+              docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy:latest image \
+                  --exit-code 1 \
+                  --severity CRITICAL \
+                  --no-progress \
+                  myapp:$(Build.SourceVersion)
+            displayName: Scan image with Trivy

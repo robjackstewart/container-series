@@ -1,0 +1,107 @@
+# Azure Pipelines — CD (build, push to ACR, deploy to Azure Container Apps)
+#
+# Triggered on pushes to main. Builds and pushes the image to ACR then
+# updates the Azure Container App to the new image.
+#
+# Setup in Azure DevOps:
+#   1. Create a Docker Registry service connection named "acr-connection".
+#   2. Create an Azure Resource Manager service connection named "azure-connection"
+#      using Workload Identity Federation (recommended) or a service principal.
+#   3. Create a variable group named "talk-11-secrets" containing:
+#        ACR_LOGIN_SERVER  — e.g. myregistry.azurecr.io
+#        ACR_NAME          — e.g. myregistry
+#        RESOURCE_GROUP    — Azure resource group name
+#   4. Create an Azure DevOps Environment named "production" and add
+#      an approval gate so deployments require a human sign-off.
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - talk-11-cicd-for-containers/**
+      - azure-pipelines/cd.yml
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: talk-11-secrets
+  - name: imageName
+    value: container-series/talk-11
+  - name: workingDirectory
+    value: talk-11-cicd-for-containers
+
+stages:
+  - stage: Build
+    displayName: Build and push image
+    jobs:
+      - job: BuildPush
+        displayName: Build and push to ACR
+        steps:
+          - task: Docker@2
+            displayName: Build and push image
+            inputs:
+              command: buildAndPush
+              containerRegistry: acr-connection
+              repository: $(imageName)
+              Dockerfile: $(workingDirectory)/Dockerfile
+              buildContext: $(workingDirectory)
+              tags: |
+                $(Build.SourceVersion)
+                latest
+
+          # Publish the image digest as a pipeline artifact so the Deploy
+          # stage can consume the exact tag without re-deriving it.
+          - script: |
+              echo "##vso[task.setvariable variable=imageTag;isOutput=true]$(Build.SourceVersion)"
+            displayName: Export image tag
+            name: setTag
+
+  - stage: Deploy
+    displayName: Deploy to Azure Container Apps
+    dependsOn: Build
+    variables:
+      imageTag: $[ stageDependencies.Build.BuildPush.outputs['setTag.imageTag'] ]
+    jobs:
+      - deployment: DeployToACA
+        displayName: Update Container App revision
+        environment: production        # enforces any approval gates configured in Azure DevOps
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  displayName: Update Container App image
+                  inputs:
+                    azureSubscription: azure-connection
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az containerapp update \
+                        --name talk-11-app \
+                        --resource-group $(RESOURCE_GROUP) \
+                        --image $(ACR_LOGIN_SERVER)/$(imageName):$(imageTag)
+
+                - task: AzureCLI@2
+                  displayName: Verify new revision is healthy
+                  inputs:
+                    azureSubscription: azure-connection
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      echo "Waiting for active revision..."
+                      for i in $(seq 1 12); do
+                        STATUS=$(az containerapp revision list \
+                          --name talk-11-app \
+                          --resource-group $(RESOURCE_GROUP) \
+                          --query "[0].properties.healthState" -o tsv 2>/dev/null || echo "unknown")
+                        echo "Health: $STATUS"
+                        [ "$STATUS" = "Healthy" ] && exit 0
+                        sleep 10
+                      done
+                      echo "Revision did not become healthy in time" >&2
+                      exit 1

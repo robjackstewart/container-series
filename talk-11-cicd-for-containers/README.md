@@ -7,7 +7,7 @@ This talk shows how to build, test, scan, publish, and deploy a small Python/Fas
 ## Prerequisites
 
 - Completed Talks 1-10 in this series
-- A GitHub account
+- A GitHub account **and/or** an Azure DevOps organisation
 - An Azure subscription
 - Docker Desktop or another Docker Engine runtime
 - Python 3.12+
@@ -15,23 +15,28 @@ This talk shows how to build, test, scan, publish, and deploy a small Python/Fas
 
 ## Talk outline (~60 minutes)
 
-1. **CI/CD principles for containers** (5 mins)
-2. **GitHub Actions: build + push on PR/merge** (6 mins)
-3. **`docker/build-push-action`** (5 mins)
-4. **Multi-architecture builds: Buildx + QEMU** (5 mins)
-5. **Layer caching in CI: GitHub Actions cache and registry cache** (6 mins)
-6. **Tagging strategy: git SHA, semver, branch** (5 mins)
-7. **Security: Trivy in CI, OIDC auth to ACR, Cosign signing** (8 mins)
-8. **Deployment to Azure Container Apps from Actions** (6 mins)
-9. **Environment promotion: dev → staging → prod** (5 mins)
-10. **GitOps: declarative state, Flux/ArgoCD intro** (5 mins)
-11. **Azure DevOps comparison** (4 mins)
+1. **CI/CD principles for containers** (4 mins)
+2. **GitHub Actions: build + push on PR/merge** (5 mins)
+3. **Azure Pipelines: stages, jobs, tasks** (5 mins)
+4. **`docker/build-push-action` vs `Docker@2` task** (4 mins)
+5. **Multi-architecture builds: Buildx + QEMU** (5 mins)
+6. **Layer caching in CI: GitHub Actions cache and registry cache** (5 mins)
+7. **Tagging strategy: git SHA, semver, branch** (4 mins)
+8. **Security: Trivy in CI, OIDC auth to ACR, Cosign signing** (7 mins)
+9. **Deployment to Azure Container Apps** (5 mins)
+10. **Environment promotion: dev → staging → prod** (5 mins)
+11. **GitOps: declarative state, Flux/ArgoCD intro** (5 mins)
+12. **Side-by-side comparison and when to choose each** (6 mins)
 
 ## Project structure
 
 ```text
 .
 ├── .github/workflows/
+│   ├── cd.yml
+│   ├── ci.yml
+│   └── multi-arch.yml
+├── azure-pipelines/
 │   ├── cd.yml
 │   ├── ci.yml
 │   └── multi-arch.yml
@@ -359,19 +364,182 @@ Typical flow:
 
 For Azure Container Apps, teams often start with direct CLI deployment from Actions and adopt GitOps later for more advanced promotion workflows.
 
-## Azure DevOps comparison
+## Azure Pipelines
 
-GitHub Actions and Azure DevOps can both implement the same container pipeline concepts.
+Azure Pipelines is Microsoft's cloud-hosted CI/CD service inside Azure DevOps. It supports the same containerisation patterns as GitHub Actions and integrates natively with Azure services.
 
-| Capability | GitHub Actions | Azure DevOps |
+### Core concepts
+
+| Concept | Azure Pipelines | GitHub Actions equivalent |
+| --- | --- | --- |
+| Pipeline definition | YAML file in the repo | workflow YAML file |
+| `trigger` / `pr` | branch/path filters | `on: push` / `on: pull_request` |
+| `stages` | ordered groups of jobs | not a first-class concept (use jobs) |
+| `jobs` | parallel work units inside a stage | `jobs:` |
+| `steps` | ordered tasks or scripts inside a job | `steps:` |
+| `task: Docker@2` | built-in Docker task | `docker/build-push-action` |
+| `task: AzureCLI@2` | built-in Azure CLI task | `azure/login` + `run: az ...` |
+| `task: PublishTestResults@2` | publishes JUnit/NUnit results | `actions/upload-artifact` |
+| Variable groups | secrets shared across pipelines | GitHub Actions secrets |
+| Service connections | authenticated links to registries/clouds | GitHub Actions secrets + OIDC |
+| Environments | deployment targets with approval gates | GitHub Environments |
+
+### Pipeline structure
+
+A typical Azure Pipelines YAML file looks like this:
+
+```yaml
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: talk-11-secrets      # variable group defined in Azure DevOps
+
+stages:
+  - stage: Build
+    jobs:
+      - job: BuildAndPush
+        steps:
+          - task: Docker@2
+            inputs:
+              command: buildAndPush
+              containerRegistry: acr-connection   # service connection name
+              repository: container-series/talk-11
+              tags: $(Build.SourceVersion)
+
+  - stage: Deploy
+    dependsOn: Build
+    jobs:
+      - deployment: DeployToACA
+        environment: production                   # triggers approval gate
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: azure-connection
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az containerapp update --name talk-11-app ...
+```
+
+### Azure Pipelines workflows in this talk
+
+#### CI pipeline (`azure-pipelines/ci.yml`)
+
+Triggered on pull requests to `main`.
+
+**Stage 1: Test**
+- installs Python 3.12 with `UsePythonVersion@0`
+- installs runtime and test dependencies
+- runs `pytest tests/ --junitxml=test-results.xml`
+- publishes JUnit results with `PublishTestResults@2` (visible in the Azure DevOps test tab)
+
+**Stage 2: BuildAndScan**
+- builds the image without pushing using `Docker@2`
+- runs Trivy via a Docker-in-Docker script step
+- fails the pipeline on CRITICAL vulnerabilities
+
+#### CD pipeline (`azure-pipelines/cd.yml`)
+
+Triggered on pushes to `main`.
+
+**Stage 1: Build**
+- authenticates to ACR via a Docker Registry service connection
+- builds and pushes with `Docker@2` (`buildAndPush` command)
+- exports the commit SHA as an output variable for downstream stages
+
+**Stage 2: Deploy**
+- targets the `production` Azure DevOps Environment
+- any approval gates configured on that environment must pass before deployment runs
+- updates the Azure Container App with `AzureCLI@2`
+- polls the revision health status to verify the rollout succeeded
+
+#### Multi-arch pipeline (`azure-pipelines/multi-arch.yml`)
+
+Triggered on semver tags (`v*`).
+
+- installs QEMU and registers binfmt handlers
+- creates a Buildx builder with the `docker-container` driver
+- logs into ACR using an Azure service connection
+- runs `docker buildx build --platform linux/amd64,linux/arm64` with provenance and SBOM
+
+### Setting up service connections
+
+Service connections are the Azure DevOps equivalent of GitHub OIDC or stored secrets.
+
+**Docker Registry service connection (`acr-connection`)**
+
+1. In Azure DevOps → Project Settings → Service connections → New.
+2. Select **Docker Registry** → **Azure Container Registry**.
+3. Choose your subscription and registry; name it `acr-connection`.
+4. Grant it to the pipeline.
+
+**Azure Resource Manager service connection (`azure-connection`)**
+
+1. In Azure DevOps → Project Settings → Service connections → New.
+2. Select **Azure Resource Manager**.
+3. Choose **Workload Identity Federation (automatic)** — this is the OIDC equivalent; no long-lived secret is stored.
+4. Scope to your subscription or resource group; name it `azure-connection`.
+
+### Variable groups
+
+Variable groups store secrets and config values that multiple pipelines can share.
+
+1. In Azure DevOps → Pipelines → Library → + Variable group.
+2. Name it `talk-11-secrets`.
+3. Add variables: `ACR_LOGIN_SERVER`, `ACR_NAME`, `RESOURCE_GROUP`.
+4. Mark sensitive values as secret (padlock icon).
+5. In the pipeline YAML reference with `- group: talk-11-secrets`.
+
+### Environments and approval gates
+
+Azure DevOps Environments let you require human approval before a deployment stage runs.
+
+1. In Azure DevOps → Pipelines → Environments → New environment.
+2. Name it `production`.
+3. Click **Approvals and checks** → Add an **Approvals** check.
+4. Add required approvers.
+
+When the CD pipeline reaches the `Deploy` stage it pauses and sends an approval request. Only after approval does the deployment run.
+
+### Predefined variables
+
+Azure Pipelines provides equivalent variables to GitHub Actions:
+
+| GitHub Actions | Azure Pipelines |
+| --- | --- |
+| `${{ github.sha }}` | `$(Build.SourceVersion)` |
+| `${{ github.ref_name }}` | `$(Build.SourceBranchName)` |
+| `${{ github.run_id }}` | `$(Build.BuildId)` |
+| `${{ github.repository }}` | `$(Build.Repository.Name)` |
+| `${{ github.workspace }}` | `$(Build.SourcesDirectory)` |
+
+### GitHub Actions vs Azure Pipelines — side by side
+
+| Capability | GitHub Actions | Azure Pipelines |
 | --- | --- | --- |
 | CI/CD as code | workflow YAML | pipeline YAML |
-| Marketplace ecosystem | GitHub Marketplace | Azure DevOps tasks/extensions |
-| OIDC cloud auth | strong native support | service connections/federated creds |
-| Repo + pipeline proximity | excellent for GitHub repos | strongest in Azure DevOps-native estates |
-| Environments and approvals | GitHub environments | approvals/checks/releases |
+| Docker build task | `docker/build-push-action` | `Docker@2` |
+| Azure login | `azure/login` (OIDC) | Workload Identity Federation service connection |
+| Secrets | GitHub repository/org secrets | Variable groups + Key Vault link |
+| Test result publishing | upload artifact + third-party | `PublishTestResults@2` (native) |
+| Approval gates | GitHub Environments | Azure DevOps Environments |
+| Marketplace | GitHub Marketplace (Actions) | Azure DevOps Extensions (tasks) |
+| Self-hosted runners | GitHub self-hosted runners | Azure DevOps self-hosted agents + VMSS |
+| Pipeline templates | reusable workflows (`workflow_call`) | pipeline templates (`extends:`) |
+| Best fit | GitHub-native repos | Azure DevOps-native estates or mixed |
 
-Choose GitHub Actions when your source of truth lives on GitHub and you want close integration with pull requests, checks, and GitHub security features.
+Choose **GitHub Actions** when your source of truth is GitHub and you want tight integration with pull requests, GitHub security features, and the Actions marketplace.
+
+Choose **Azure Pipelines** when your organisation already uses Azure DevOps, needs advanced release management, or requires VMSS-based elastic agent pools.
 
 ## Bonus topics
 
