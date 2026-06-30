@@ -1,30 +1,46 @@
 # Stage 1: Build
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM maven:3.9.9-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
+# --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
+# Default EXTRA_CERTS_DIR=certs points at an empty placeholder, so this is a NO-OP
+# on a normal laptop and only activates when real .crt files are supplied in certs/.
+# Pass real certs with:  docker build --build-arg EXTRA_CERTS_DIR=certs ...
+ARG EXTRA_CERTS_DIR=certs
+COPY ${EXTRA_CERTS_DIR}/ /usr/local/share/ca-certificates/extra/
+RUN if ls -A /usr/local/share/ca-certificates/extra/ 2>/dev/null | grep -q .; then \
+        if command -v update-ca-certificates >/dev/null 2>&1; then \
+            update-ca-certificates; \
+        else \
+            cat /usr/local/share/ca-certificates/extra/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
+        fi; \
+    fi
+# -----------------------------------------------------------------------------
+
 # Copy Maven wrapper and POM
-COPY pom.xml ./
+COPY job/pom.xml ./
 
 # Download dependencies (cached layer)
 RUN --mount=type=cache,target=/root/.m2 \
-    mvn dependency:go-offline -B 2>/dev/null || true
+    mvn dependency:go-offline -B
 
 # Copy source and build
-COPY src ./src
+COPY job/src ./src
 RUN --mount=type=cache,target=/root/.m2 \
     mvn package -DskipTests -B
 
 # Stage 2: Runtime
-FROM eclipse-temurin:21-jre-alpine AS runtime
+FROM eclipse-temurin:21-jre AS runtime
 
 WORKDIR /app
 
 # Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN groupadd --system appgroup && useradd --system --gid appgroup --home-dir /app --shell /usr/sbin/nologin appuser
 
 # Copy built jar
 COPY --from=build /app/target/*.jar app.jar
+RUN chown appuser:appgroup /app/app.jar
 
 USER appuser
 

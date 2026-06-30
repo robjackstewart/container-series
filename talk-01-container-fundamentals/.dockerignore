@@ -22,13 +22,13 @@ publish/
 .DS_Store
 Thumbs.db
 
-# Test and coverage artifacts
+# Test and coverage artefacts
 TestResults/
 coverage/
 *.coverage
 *.coveragexml
 
-# Package artifacts
+# Package artefacts
 *.nupkg
 *.snupkg
 

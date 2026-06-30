@@ -14,6 +14,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /hello ./
 # scratch is the absolute minimum base image: an empty filesystem with no shell, package manager, or userland tools.
 FROM scratch
 
+# scratch has no CA trust store; copy ca-certificates.crt from a builder only if this binary needs outbound TLS.
+
 # Copy only the compiled binary into the final image.
 COPY --from=build /hello /hello
 

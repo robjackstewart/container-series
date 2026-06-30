@@ -1,0 +1,13 @@
+**/target
+**/.mvn
+**/.gradle
+**/.idea
+**/.vscode
+**/*.log
+.git
+.gitignore
+README.md
+RUNSHEET.md
+notes/
+infra/
+scripts/

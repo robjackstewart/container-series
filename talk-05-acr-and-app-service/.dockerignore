@@ -1,0 +1,11 @@
+target/
+**/target/
+.git/
+.gitignore
+.env
+*.log
+README.md
+RUNSHEET.md
+notes/
+infra/
+scripts/

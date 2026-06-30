@@ -57,8 +57,10 @@ jobs:
           REGISTRY=$(ACR_LOGIN_SERVER)
           REPO=$REGISTRY/$(imageName)
 
+          # Behind Netskope, provide PEM .crt files via certs/; never hardcode certificate content here.
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
+            --build-arg EXTRA_CERTS_DIR=certs \
             --provenance=true \
             --sbom=true \
             --push \

@@ -1,6 +1,9 @@
 services:
   api:
-    build: ../api
+    build:
+      context: ../api
+      args:
+        EXTRA_CERTS_DIR: ${EXTRA_CERTS_DIR:-certs}
     volumes: ["../..:/workspace:cached"]
     command: sleep infinity
     environment:

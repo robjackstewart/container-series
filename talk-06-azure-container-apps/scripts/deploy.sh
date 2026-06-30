@@ -1,14 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
-REGISTRY_NAME="containerseriesacr"
-RESOURCE_GROUP="container-series-rg"
-LOCATION="uksouth"
+REGISTRY_NAME="${REGISTRY_NAME:-containerseriesacr$RANDOM}"
+RESOURCE_GROUP="${RESOURCE_GROUP:-container-series-rg}"
+LOCATION="${LOCATION:-uksouth}"
 
 echo "=== Talk 06: Azure Container Apps Deployment ==="
 
 # 1. Install Container Apps extension
+az account show -o table
 az extension add --name containerapp --upgrade --yes
+az provider register --namespace Microsoft.App
+az provider register --namespace Microsoft.OperationalInsights
+az provider register --namespace Microsoft.ContainerRegistry
 
 # 2. Create resource group and ACR (if not already done from Talk 05)
 az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
@@ -19,12 +23,12 @@ az acr login --name "$REGISTRY_NAME"
 
 # 3. Build and push service image
 echo "Building order service..."
-docker build -t "$ACR_SERVER/order-service:latest" service/
+DOCKER_BUILDKIT=1 docker build -f service/Dockerfile --build-arg EXTRA_CERTS_DIR=certs -t "$ACR_SERVER/order-service:latest" .
 docker push "$ACR_SERVER/order-service:latest"
 
 # 4. Build and push job image
 echo "Building order processor job..."
-docker build -t "$ACR_SERVER/order-job:latest" job/
+DOCKER_BUILDKIT=1 docker build -f job/Dockerfile --build-arg EXTRA_CERTS_DIR=certs -t "$ACR_SERVER/order-job:latest" .
 docker push "$ACR_SERVER/order-job:latest"
 
 # 5. Deploy infrastructure
@@ -32,7 +36,8 @@ echo "Deploying Container Apps..."
 az deployment group create \
   --resource-group "$RESOURCE_GROUP" \
   --template-file infra/main.bicep \
-  --parameters infra/parameters.json
+  --parameters infra/parameters.json \
+  --parameters acrName="$REGISTRY_NAME" location="$LOCATION" serviceImageTag=latest jobImageTag=latest
 
 # 6. Get service URL
 SERVICE_URL=$(az containerapp show \

@@ -16,7 +16,7 @@ spec:
       runtimeClassName: wasmtime-spin-v2  # <-- This is the magic line
       containers:
         - name: hello-spin
-          image: ghcr.io/example/hello-spin:latest
+          image: ghcr.io/fermyon/spin-hello-world:latest
           ports:
             - containerPort: 80
           resources:

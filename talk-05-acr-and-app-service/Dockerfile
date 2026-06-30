@@ -3,6 +3,21 @@ FROM rust:1.75-slim AS builder
 
 WORKDIR /app
 
+# --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
+# Default EXTRA_CERTS_DIR=certs points at an empty placeholder, so this is a NO-OP
+# on a normal laptop and only activates when real .crt files are supplied in certs/.
+# Pass real certs with:  docker build --build-arg EXTRA_CERTS_DIR=certs ...
+ARG EXTRA_CERTS_DIR=certs
+COPY ${EXTRA_CERTS_DIR}/ /usr/local/share/ca-certificates/extra/
+RUN if ls -A /usr/local/share/ca-certificates/extra/ 2>/dev/null | grep -q .; then \
+        if command -v update-ca-certificates >/dev/null 2>&1; then \
+            update-ca-certificates; \
+        else \
+            cat /usr/local/share/ca-certificates/extra/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
+        fi; \
+    fi
+# -----------------------------------------------------------------------------
+
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
@@ -28,7 +43,8 @@ FROM debian:bookworm-slim AS runtime
 
 WORKDIR /app
 
-# Install runtime dependencies
+# Install runtime dependencies. This API does not make outbound TLS calls during
+# the demo; keep ca-certificates here for standard Debian TLS hygiene.
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \

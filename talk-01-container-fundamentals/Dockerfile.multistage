@@ -9,6 +9,21 @@ ARG APP_VERSION=1.0.0
 # Build inside a dedicated working directory to keep paths predictable.
 WORKDIR /source
 
+# --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
+# Default EXTRA_CERTS_DIR=certs points at an empty placeholder, so this is a NO-OP
+# on a normal laptop and only activates when real .crt files are supplied in certs/.
+# Pass real certs with:  docker build --build-arg EXTRA_CERTS_DIR=certs ...
+ARG EXTRA_CERTS_DIR=certs
+COPY ${EXTRA_CERTS_DIR}/ /usr/local/share/ca-certificates/extra/
+RUN if ls -A /usr/local/share/ca-certificates/extra/ 2>/dev/null | grep -q .; then \
+        if command -v update-ca-certificates >/dev/null 2>&1; then \
+            update-ca-certificates; \
+        else \
+            cat /usr/local/share/ca-certificates/extra/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
+        fi; \
+    fi
+# -----------------------------------------------------------------------------
+
 # Copy the project file first so package restore can be cached independently from source code changes.
 COPY src/WeatherApi.csproj ./src/
 
@@ -30,6 +45,8 @@ RUN dotnet publish ./src/WeatherApi.csproj -c Release -o /app/publish --no-resto
 # This removes the SDK from the final image and significantly reduces size and attack surface.
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 
+# Runtime makes no outbound TLS calls in this demo, so no extra corporate CA bundle is copied here.
+
 # Re-declare the build arg in this stage so it can be promoted into a runtime environment variable.
 ARG APP_VERSION=1.0.0
 
@@ -44,7 +61,7 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production \
     APP_VERSION=${APP_VERSION}
 
-# Copy only the published output, not the source tree or SDK artifacts.
+# Copy only the published output, not the source tree or SDK artefacts.
 # This is the main win of a multi-stage build: the runtime image contains only what it needs to run.
 COPY --from=build /app/publish ./
 

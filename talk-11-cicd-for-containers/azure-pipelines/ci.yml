@@ -71,6 +71,8 @@ stages:
               Dockerfile: $(workingDirectory)/Dockerfile
               buildContext: $(workingDirectory)
               tags: myapp:$(Build.SourceVersion)
+              # Behind Netskope, provide PEM .crt files via certs/; never hardcode certificate content here.
+              arguments: --build-arg EXTRA_CERTS_DIR=certs
               addPipelineData: false
 
           - script: |

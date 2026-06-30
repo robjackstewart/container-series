@@ -3,7 +3,10 @@ name: talk-04-docker-compose
 services:
   api:
     build:
-      context: ./api
+      context: .
+      dockerfile: api/Dockerfile
+      args:
+        EXTRA_CERTS_DIR: ${EXTRA_CERTS_DIR:-certs}
     environment:
       PORT: 8080
       DB_HOST: postgres
@@ -63,7 +66,10 @@ services:
 
   nginx:
     build:
-      context: ./nginx
+      context: .
+      dockerfile: nginx/Dockerfile
+      args:
+        EXTRA_CERTS_DIR: ${EXTRA_CERTS_DIR:-certs}
     depends_on:
       api:
         condition: service_healthy

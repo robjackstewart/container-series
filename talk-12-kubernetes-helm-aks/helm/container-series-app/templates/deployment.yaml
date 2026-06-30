@@ -51,6 +51,9 @@ spec:
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
         # Sidecar: log forwarder (demonstrates sidecar pattern)
         - name: log-forwarder
           image: busybox:1.36
@@ -74,3 +77,6 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}

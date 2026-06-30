@@ -2,7 +2,10 @@ name: talk-15
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        EXTRA_CERTS_DIR: ${EXTRA_CERTS_DIR:-certs}
     ports:
       - "4000:4000"
     environment:

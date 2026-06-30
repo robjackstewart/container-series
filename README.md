@@ -8,6 +8,20 @@ Each talk is approximately 60 minutes and builds on the previous one. Every talk
 
 A different programming language is used in each talk to emphasise container versatility: containers work the same regardless of language.
 
+### How each talk is laid out
+
+Every talk separates **what you say** from **what you run**, so you never have speaker notes and live code fighting for the same screen:
+
+| Path | Purpose | When to open it |
+|------|---------|-----------------|
+| `README.md` | Slim index — what you'll learn, prerequisites, folder map | First, to orient yourself |
+| `RUNSHEET.md` | One-page cue card: pre-flight checklist, copy-paste commands, talking points, "if it breaks" recovery | On your **private** screen while presenting |
+| `notes/` | Speaker guide — the teaching narrative and "expert asides" (no command blocks) | When preparing, or on a private screen |
+| `certs/` | Drop a corporate CA `.crt` here if you're behind a TLS-intercepting proxy (empty by default) | Only behind Netskope-style proxies |
+| code dirs | The working example(s) — share these on screen | During the live demo |
+
+**Presenting a talk in 10 minutes?** Open the talk's `RUNSHEET.md`, run the pre-flight checklist, then work down the command sequence while sharing the code/terminal. Keep `notes/` and the runsheet on your own screen.
+
 ## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine on Linux)
@@ -102,13 +116,53 @@ docker compose up
 curl http://localhost/items
 ```
 
+## Behind a TLS-intercepting proxy (Netskope)?
+
+Some corporate networks (e.g. **Netskope**) intercept TLS, which makes Docker builds and
+image pulls fail with certificate errors unless the corporate CA is trusted inside the build.
+
+Every Dockerfile in this series supports an **`EXTRA_CERTS_DIR`** build argument that trusts
+extra CA certificates **only when you provide them** — it is a complete no-op on a normal
+laptop, so nothing breaks when you're off the corporate network.
+
+**To use it:**
+
+1. Export your corporate CA certificate(s) as PEM files with a `.crt` extension.
+2. Drop them into the talk's `certs/` folder (each talk has one, empty by default).
+3. Build as normal. The build copies the certs into the trust store and runs
+   `update-ca-certificates` automatically. Compose files already pass the arg through:
+
+   ```bash
+   # Plain docker build
+   docker build --build-arg EXTRA_CERTS_DIR=certs -t myapp .
+
+   # Docker Compose (the arg is wired into every build: block already)
+   EXTRA_CERTS_DIR=certs docker compose up --build
+   ```
+
+**How it works:** each Dockerfile copies `${EXTRA_CERTS_DIR}/` (default `certs`, an empty
+placeholder) into `/usr/local/share/ca-certificates/extra/` and only refreshes the CA bundle
+if that directory contains files. Shell-less runtimes (distroless, Chainguard, scratch) trust
+the refreshed bundle by copying it from a build stage instead.
+
+**Non-Dockerfile builders** (Aspire, Buildpacks/`pack`, `ko`, `jib`, Nixpacks, Spin/Wasm)
+can't use a Dockerfile arg — for those, trust the corporate CA at the **host/OS level** (and
+the Docker daemon). The relevant talk's `notes/` explains the exact workaround
+(`SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, JVM trust store, `pack --volume`, etc.).
+
+> Real certificates dropped into `certs/` are git-ignored; only the `.gitkeep` placeholder is committed.
+
 ## Repository Structure
 
 ```text
 container-series/
 ├── README.md                               ← You are here
+├── .gitignore                              ← Ignores build output (bin/obj, target, node_modules, …) and real certs
 ├── talk-01-container-fundamentals/         ← C# .NET 8
-│   ├── README.md
+│   ├── README.md                           ← Slim index for the talk
+│   ├── RUNSHEET.md                         ← One-page cue card (present from this)
+│   ├── notes/                              ← Speaker guide (teaching narrative)
+│   ├── certs/                              ← Drop corporate CA .crt here (Netskope); empty by default
 │   ├── Dockerfile
 │   ├── Dockerfile.multistage
 │   ├── .dockerignore

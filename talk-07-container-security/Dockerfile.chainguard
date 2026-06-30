@@ -5,13 +5,28 @@
 # - strong provenance and SBOM story
 # - many images target zero or near-zero known CVEs at release time
 # - FIPS-ready variants are available for stricter compliance environments
-# - suitable for organizations that care about hardened defaults and compliance
+# - suitable for organisations that care about hardened defaults and compliance
 
 # Use the -dev variant for the build stage because it includes the tooling needed to
 # install dependencies and compile TypeScript. The pure runtime image is even smaller.
 FROM cgr.dev/chainguard/node:latest-dev AS build
 
 WORKDIR /app
+
+# --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
+# Default EXTRA_CERTS_DIR=certs points at an empty placeholder, so this is a NO-OP
+# on a normal laptop and only activates when real .crt files are supplied in certs/.
+# Pass real certs with:  docker build --build-arg EXTRA_CERTS_DIR=certs ...
+ARG EXTRA_CERTS_DIR=certs
+COPY ${EXTRA_CERTS_DIR}/ /usr/local/share/ca-certificates/extra/
+RUN if ls -A /usr/local/share/ca-certificates/extra/ 2>/dev/null | grep -q .; then \
+        if command -v update-ca-certificates >/dev/null 2>&1; then \
+            update-ca-certificates; \
+        else \
+            cat /usr/local/share/ca-certificates/extra/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
+        fi; \
+    fi
+# -----------------------------------------------------------------------------
 
 COPY package*.json ./
 RUN npm ci
@@ -28,6 +43,10 @@ FROM cgr.dev/chainguard/node:latest
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
+
+# Chainguard runtime images are intentionally shell-less/minimal, so the runtime
+# stage cannot run update-ca-certificates; copy the refreshed bundle from build.
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules

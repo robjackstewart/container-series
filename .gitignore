@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------------------
+# Container Series .gitignore
+# Each talk uses a different language, so this covers the whole toolchain set.
+# Generated build output and dependency caches should never be committed.
+# Note: certs/ folders are intentionally tracked (they hold a .gitkeep); only
+# the certificate files themselves are ignored below.
+# ---------------------------------------------------------------------------
+
+# --- .NET (talks 01, 09, 10, 13) -------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+project.lock.json
+*.user
+*.suo
+.vs/
+*.userprefs
+msbuild.binlog
+
+# --- Node.js / TypeScript (talks 04, 07, 08, 14) ---------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+*.tsbuildinfo
+
+# --- Python (talks 02, 11) -------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Go (talks 04, 08, 14) -------------------------------------------------
+# Compiled binaries produced by `go build` (the `bin/` rule above also helps)
+vendor/
+
+# --- Rust (talks 05, 13) ---------------------------------------------------
+target/
+**/*.rs.bk
+Cargo.lock.orig
+
+# --- Java / Kotlin (Maven & Gradle) (talks 06, 12) -------------------------
+build/
+.gradle/
+.mvn/wrapper/maven-wrapper.jar
+*.class
+
+# --- Ruby (talk 14) --------------------------------------------------------
+.bundle/
+vendor/bundle/
+*.gem
+
+# --- Elixir / Phoenix (talk 15) --------------------------------------------
+_build/
+deps/
+*.ez
+erl_crash.dump
+
+# --- R (talk 03) -----------------------------------------------------------
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# --- Corporate CA certificates (Netskope) ----------------------------------
+# Keep the placeholder, never commit real certs dropped into a talk's certs/.
+certs/*
+!certs/.gitkeep
+
+# --- Editor / OS / misc ----------------------------------------------------
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local

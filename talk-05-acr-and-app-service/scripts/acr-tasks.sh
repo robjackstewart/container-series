@@ -46,7 +46,7 @@ LAST_RUN=$(az acr task list-runs --registry "$REGISTRY_NAME" --query '[0].runId'
 az acr task logs --registry "$REGISTRY_NAME" --run-id "$LAST_RUN"
 
 # 6. Enable base image update triggers
-# When mcr.microsoft.com/dotnet/runtime:8.0 updates, rebuild automatically
+# When the Rust or Debian base image updates, rebuild automatically
 az acr task update \
   --registry "$REGISTRY_NAME" \
   --name "build-on-push" \

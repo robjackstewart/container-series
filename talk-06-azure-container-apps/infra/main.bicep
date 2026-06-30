@@ -43,10 +43,28 @@ resource environment 'Microsoft.App/managedEnvironments@2023-05-01' = {
   }
 }
 
+// Demo Dapr state store used by the order service.
+resource daprStateStore 'Microsoft.App/managedEnvironments/daprComponents@2023-05-01' = {
+  parent: environment
+  name: 'statestore'
+  properties: {
+    componentType: 'state.in-memory'
+    version: 'v1'
+    ignoreErrors: false
+    metadata: []
+    scopes: [
+      'order-service'
+    ]
+  }
+}
+
 // Container App: Order Service
 resource orderService 'Microsoft.App/containerApps@2023-05-01' = {
   name: 'order-service'
   location: location
+  dependsOn: [
+    daprStateStore
+  ]
   identity: {
     type: 'SystemAssigned'
   }

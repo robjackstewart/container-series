@@ -1,0 +1,43 @@
+# Build output
+**/bin/
+**/obj/
+out/
+publish/
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# IDE and editor files
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Test and coverage artefacts
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Package artefacts
+*.nupkg
+*.snupkg
+
+# Logs and diagnostics
+*.log
+*.tmp
+*.temp
+
+# Environment and secrets files
+.env
+.env.*
+secrets.json

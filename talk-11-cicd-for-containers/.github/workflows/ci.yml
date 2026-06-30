@@ -37,6 +37,9 @@ jobs:
           push: false
           load: true
           tags: myapp:${{ github.sha }}
+          # Behind Netskope, provide PEM .crt files via certs/; never hardcode certificate content here.
+          build-args: |
+            EXTRA_CERTS_DIR=certs
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - uses: aquasecurity/trivy-action@master

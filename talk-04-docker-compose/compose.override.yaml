@@ -5,15 +5,10 @@ services:
       GIN_MODE: debug
     ports:
       - "2345:2345"
-    volumes:
-      - ./api:/src
     develop:
       watch:
-        - action: sync
-          path: ./api
-          target: /src
         - action: rebuild
-          path: ./api/go.mod
+          path: ./api
 
   postgres:
     ports:

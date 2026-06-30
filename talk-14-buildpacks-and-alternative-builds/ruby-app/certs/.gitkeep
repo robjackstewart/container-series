@@ -1,0 +1,2 @@
+# Drop your corporate CA certificate(s) here as .crt (PEM) files for Netskope/TLS-interception proxies.
+# Empty by default => the cert step in comparison/Dockerfile.ruby is a no-op. See ../../README.md (Netskope section).

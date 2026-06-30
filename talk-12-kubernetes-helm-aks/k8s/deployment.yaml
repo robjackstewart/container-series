@@ -19,7 +19,7 @@ spec:
       initContainers:
         - name: init-app
           image: busybox:1.36
-          command: ["sh", "-c", "echo 'Initialization complete' && mkdir -p /var/log/app && touch /var/log/app/application.log"]
+          command: ["sh", "-c", "mkdir -p /var/log/app && touch /var/log/app/application.log && chmod -R 0777 /var/log/app && echo 'Initialization complete'"]
           volumeMounts:
             - name: app-logs
               mountPath: /var/log/app

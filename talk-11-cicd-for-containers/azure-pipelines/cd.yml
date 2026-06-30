@@ -43,13 +43,25 @@ stages:
         displayName: Build and push to ACR
         steps:
           - task: Docker@2
-            displayName: Build and push image
+            displayName: Build image
             inputs:
-              command: buildAndPush
+              command: build
               containerRegistry: acr-connection
               repository: $(imageName)
               Dockerfile: $(workingDirectory)/Dockerfile
               buildContext: $(workingDirectory)
+              tags: |
+                $(Build.SourceVersion)
+                latest
+              # Behind Netskope, provide PEM .crt files via certs/; never hardcode certificate content here.
+              arguments: --build-arg EXTRA_CERTS_DIR=certs
+
+          - task: Docker@2
+            displayName: Push image
+            inputs:
+              command: push
+              containerRegistry: acr-connection
+              repository: $(imageName)
               tags: |
                 $(Build.SourceVersion)
                 latest

@@ -10,6 +10,21 @@ FROM node:20-slim AS build
 
 WORKDIR /app
 
+# --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
+# Default EXTRA_CERTS_DIR=certs points at an empty placeholder, so this is a NO-OP
+# on a normal laptop and only activates when real .crt files are supplied in certs/.
+# Pass real certs with:  docker build --build-arg EXTRA_CERTS_DIR=certs ...
+ARG EXTRA_CERTS_DIR=certs
+COPY ${EXTRA_CERTS_DIR}/ /usr/local/share/ca-certificates/extra/
+RUN if ls -A /usr/local/share/ca-certificates/extra/ 2>/dev/null | grep -q .; then \
+        if command -v update-ca-certificates >/dev/null 2>&1; then \
+            update-ca-certificates; \
+        else \
+            cat /usr/local/share/ca-certificates/extra/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
+        fi; \
+    fi
+# -----------------------------------------------------------------------------
+
 # Copy dependency manifests first so Docker can cache dependency installation.
 COPY package*.json ./
 
@@ -29,6 +44,10 @@ FROM gcr.io/distroless/nodejs20-debian12
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
+
+# Distroless runtime images do not include a shell, so the CA bundle must be
+# refreshed in the build stage and copied in rather than updated here.
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 # Copy the compiled output and production dependencies only.
 COPY --from=build /app/dist ./dist
