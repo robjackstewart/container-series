@@ -18,7 +18,8 @@ if [ -s /run/secrets/netskope_cert ]; then
   update-ca-certificates 2>/dev/null || cat /run/secrets/netskope_cert >> /etc/ssl/certs/ca-certificates.crt
 fi
 apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
-BUNDLE_FORCE_RUBY_PLATFORM=1 bundle install
+bundle lock --add-platform x86_64-linux
+bundle install
 if [ -s /run/secrets/netskope_cert ]; then
   rm -f /usr/local/share/ca-certificates/netskope.crt
   mv /tmp/ca-bundle.orig /etc/ssl/certs/ca-certificates.crt
