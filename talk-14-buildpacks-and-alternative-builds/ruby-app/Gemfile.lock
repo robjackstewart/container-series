@@ -31,7 +31,6 @@ GEM
 PLATFORMS
   ruby
   x64-mingw-ucrt
-  x86_64-linux
 
 DEPENDENCIES
   json (~> 2.0)
