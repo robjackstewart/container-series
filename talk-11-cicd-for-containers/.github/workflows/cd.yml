@@ -36,9 +36,10 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          # Behind Netskope, provide PEM .crt files via certs/; never hardcode certificate content here.
-          build-args: |
-            EXTRA_CERTS_DIR=certs
+          # Behind Netskope, provide the corporate CA as a repository secret named NETSKOPE_CERT.
+          # The cert is not stored in any image layer — it is mounted as a BuildKit secret per RUN.
+          secrets: |
+            netskope_cert=${{ secrets.NETSKOPE_CERT }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
       - run: |

@@ -21,7 +21,7 @@ This talk shows how container registries store more than runnable images, using 
 - **`sample-artifact/`** — SBOM and policy payloads used for ORAS artifact demos.
 - **`bonus/`** — Wasm, config, and local OCI layout bonus workflow.
 - **`oci-artifacts-demo.sh`** — optional scripted version of the main ORAS workflow.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -30,7 +30,7 @@ docker build -t talk03-r-plumber:local .
 ```
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`**. Every Docker build in this talk trusts it automatically via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Leave `certs/` empty and nothing changes. See the repo root README for the full explanation.
+Save your corporate CA as **`certs/netskope.crt`**. Build with `--secret id=netskope_cert,src=certs/netskope.crt` to trust it during the build — the cert is not stored in any image layer. Omit `--secret` when not behind a proxy. See the repo root README for the full explanation.
 
 ## Next in the series
 Talk 04 moves from registries into Docker Compose and multi-service orchestration.

@@ -19,7 +19,7 @@ Package a Rust + Actix-web API, publish it to Azure Container Registry, and run 
 - **`src/`** — the Rust / Actix-web todo API.
 - **`infra/`** — Bicep template and sample parameters for ACR, App Service, and role assignments.
 - **`scripts/`** — optional helper scripts for deployment and ACR Tasks.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -37,7 +37,7 @@ az acr build --registry <acr-name> --image rust-todo-api:latest --file Dockerfil
 - `DELETE /todos/{id}`
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`**. Every Docker build in this talk trusts it automatically via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Leave `certs/` empty and nothing changes. See the repo root README for the full explanation.
+Save your corporate CA as **`certs/netskope.crt`**. Build with `--secret id=netskope_cert,src=certs/netskope.crt` to trust it during the build — the cert is not stored in any image layer. Omit `--secret` when not behind a proxy. See the repo root README for the full explanation.
 
 ## Next in the series
 Talk 06 moves from App Service into Azure Container Apps and serverless container hosting.

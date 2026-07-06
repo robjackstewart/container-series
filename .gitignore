@@ -71,9 +71,9 @@ erl_crash.dump
 .Ruserdata
 
 # --- Corporate CA certificates (Netskope) ----------------------------------
-# Keep the placeholder, never commit real certs dropped into a talk's certs/.
-certs/*
-!certs/.gitkeep
+# Keep the placeholder, never commit real certs in any talk's certs/ folder.
+**/certs/*
+!**/certs/.gitkeep
 
 # --- Editor / OS / misc ----------------------------------------------------
 .idea/

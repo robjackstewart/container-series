@@ -4,8 +4,8 @@ services:
   app:
     build:
       context: .
-      args:
-        EXTRA_CERTS_DIR: ${EXTRA_CERTS_DIR:-certs}
+      secrets:
+        - netskope_cert
     ports:
       - "4000:4000"
     environment:
@@ -108,3 +108,9 @@ networks:
 volumes:
   prometheus-data:
   grafana-data:
+
+# Default to an empty placeholder so `docker compose build` works without a cert.
+# Override with: NETSKOPE_CERT=./certs/netskope.crt docker compose build
+secrets:
+  netskope_cert:
+    file: ${NETSKOPE_CERT:-./certs/.gitkeep}

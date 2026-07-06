@@ -20,7 +20,7 @@ Define and run a realistic local stack with Docker Compose: a Go / Gin API, Post
 - **`nginx/`** — reverse-proxy configuration and image wrapper.
 - **`compose*.yaml`** — base, development override, and test Compose definitions.
 - **`bonus/`** — GPU Compose example for Ollama and Open WebUI.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -37,7 +37,7 @@ docker compose up --build
 - `GET /cache-stats`
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`**. Every Docker build in this talk trusts it automatically via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Leave `certs/` empty and nothing changes. See the repo root README for the full explanation.
+Save your corporate CA as **`certs/netskope.crt`**. For `docker build` pass `--secret id=netskope_cert,src=certs/netskope.crt`; for Compose run `NETSKOPE_CERT=./certs/netskope.crt docker compose build` — the cert is not stored in any image layer. Omit the secret when not behind a proxy. See the repo root README for the full explanation.
 
 ## Next in the series
 Talk 05 moves from local orchestration into Azure Container Registry and App Service deployment.

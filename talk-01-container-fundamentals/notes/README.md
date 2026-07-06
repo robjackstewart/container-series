@@ -74,6 +74,6 @@ Use `dive` if the room is curious about what actually changed in each layer. It 
 The `scratch` example is deliberately extreme: a static Go binary copied into an empty filesystem. It is useful because it strips the model down to the minimum possible final image — no shell, no package manager, no libc, and no operating-system userland. The trade-off is equally important: if it fails in production, you cannot exec into a shell to poke around, and you must explicitly provide anything the binary needs, such as CA certificates for outbound TLS.
 
 ## Netskope / corporate proxy note
-This talk uses Dockerfiles for all image builds. The SDK build stages trust optional corporate CA certificates copied into `certs/` through the `EXTRA_CERTS_DIR` build argument before NuGet restore runs. The files must be PEM-encoded `.crt` files; if a proxy exports `.pem`, rename it to `.crt` after confirming it is PEM text.
+This talk uses Dockerfiles for all image builds. The SDK build stages trust an optional corporate CA certificate via a BuildKit secret (`--secret id=netskope_cert,src=certs/netskope.crt`) before NuGet restore runs. The cert is never written to any image layer — omit `--secret` when not behind a TLS-intercepting proxy.
 
 The final ASP.NET Core runtime image in the multi-stage example does not make outbound TLS calls during the demo, so no additional CA bundle is copied there. The `scratch` bonus image has no CA trust store at all; copy `ca-certificates.crt` from a builder only if the binary itself needs outbound TLS.

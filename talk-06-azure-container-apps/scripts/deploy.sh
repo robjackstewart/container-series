@@ -23,12 +23,17 @@ az acr login --name "$REGISTRY_NAME"
 
 # 3. Build and push service image
 echo "Building order service..."
-DOCKER_BUILDKIT=1 docker build -f service/Dockerfile --build-arg EXTRA_CERTS_DIR=certs -t "$ACR_SERVER/order-service:latest" .
+# Behind Netskope? Export NETSKOPE_CERT=certs/netskope.crt before running.
+DOCKER_BUILDKIT=1 docker build -f service/Dockerfile \
+  ${NETSKOPE_CERT:+--secret id=netskope_cert,src="$NETSKOPE_CERT"} \
+  -t "$ACR_SERVER/order-service:latest" .
 docker push "$ACR_SERVER/order-service:latest"
 
 # 4. Build and push job image
 echo "Building order processor job..."
-DOCKER_BUILDKIT=1 docker build -f job/Dockerfile --build-arg EXTRA_CERTS_DIR=certs -t "$ACR_SERVER/order-job:latest" .
+DOCKER_BUILDKIT=1 docker build -f job/Dockerfile \
+  ${NETSKOPE_CERT:+--secret id=netskope_cert,src="$NETSKOPE_CERT"} \
+  -t "$ACR_SERVER/order-job:latest" .
 docker push "$ACR_SERVER/order-job:latest"
 
 # 5. Deploy infrastructure

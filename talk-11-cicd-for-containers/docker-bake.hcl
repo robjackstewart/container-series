@@ -10,16 +10,15 @@ variable "TAG" {
   default = "latest"
 }
 
-variable "EXTRA_CERTS_DIR" {
-  default = "certs"
+variable "NETSKOPE_CERT" {
+  default = ""
 }
 
 target "app" {
   context = "."
   dockerfile = "Dockerfile"
-  args = {
-    EXTRA_CERTS_DIR = "${EXTRA_CERTS_DIR}"
-  }
+  # Pass NETSKOPE_CERT=/path/to/cert.crt to trust a corporate CA without baking it into any layer.
+  secret = NETSKOPE_CERT != "" ? ["id=netskope_cert,src=${NETSKOPE_CERT}"] : []
   tags = ["${REGISTRY}/talk-11:${TAG}"]
   cache-from = ["type=registry,ref=${REGISTRY}/talk-11:buildcache"]
   cache-to = ["type=registry,ref=${REGISTRY}/talk-11:buildcache,mode=max"]

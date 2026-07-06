@@ -29,7 +29,7 @@ dotnet run --project .\ContainerSeries.AppHost\ContainerSeries.AppHost.csproj
 ```
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-There is no Dockerfile in this talk, so the usual `EXTRA_CERTS_DIR` Docker build pattern does not run here. Aspire asks the host Docker daemon to pull and run dependency containers such as Redis, PostgreSQL, and RabbitMQ, so trust the corporate CA at the host OS and Docker daemon level. See **`notes/README.md`** for the non-Dockerfile workaround.
+There is no Dockerfile in this talk, so the usual `--secret id=netskope_cert` Docker build pattern does not run here. Aspire asks the host Docker daemon to pull and run dependency containers such as Redis, PostgreSQL, and RabbitMQ, so trust the corporate CA at the host OS and Docker daemon level. See **`notes/README.md`** for the non-Dockerfile workaround.
 
 ## Next in the series
 Talk 11 moves from local orchestration into CI/CD pipelines for containerised applications.

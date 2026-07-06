@@ -37,9 +37,10 @@ jobs:
           push: false
           load: true
           tags: myapp:${{ github.sha }}
-          # Behind Netskope, provide PEM .crt files via certs/; never hardcode certificate content here.
-          build-args: |
-            EXTRA_CERTS_DIR=certs
+          # Behind Netskope, provide the corporate CA as a repository secret named NETSKOPE_CERT.
+          # The cert is not stored in any image layer — it is mounted as a BuildKit secret per RUN.
+          secrets: |
+            netskope_cert=${{ secrets.NETSKOPE_CERT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - uses: aquasecurity/trivy-action@master

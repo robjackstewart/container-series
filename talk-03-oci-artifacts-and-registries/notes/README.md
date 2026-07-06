@@ -69,6 +69,6 @@ Start with a familiar container image: a small R / Plumber API that serves predi
 Use the Wasm path to show a runtime-neutral binary travelling through the same registry as the API image. Use the ML-model path to ask whether models should be baked into images, shipped separately as artifacts, or promoted as a matched image-and-model pair. The best answer depends on release cadence, rollback needs, model size, and whether the serving image can safely fetch model content at startup.
 
 ## Netskope / corporate proxy note
-This talk uses a Dockerfile based on Debian-style Rocker images. Optional corporate CA certificates are copied from `certs/` through the `EXTRA_CERTS_DIR` build argument before `apt-get` and R package installation perform outbound TLS. The files must be PEM-encoded `.crt` files; if Netskope exports a `.pem`, rename it to `.crt` after confirming it is PEM text.
+This talk uses a Dockerfile based on Debian-style Rocker images. An optional corporate CA certificate is trusted via a BuildKit secret (`--secret id=netskope_cert,src=certs/netskope.crt`) before `apt-get` and R package installation perform outbound TLS. The cert is never written to any image layer — omit `--secret` when not behind a TLS-intercepting proxy.
 
-The final runtime stage inherits the trusted CA bundle from the base stage. If the running Plumber API later makes outbound TLS calls, it will use that Debian trust store; leave `certs/` empty for normal machines where no interception certificate is required.
+If the running Plumber API later makes outbound TLS calls, it uses the Debian trust store in the base image. The build-time cert guard is a no-op when no secret is supplied, so normal builds are unchanged.

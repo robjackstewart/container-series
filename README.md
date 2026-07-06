@@ -121,36 +121,37 @@ curl http://localhost/items
 Some corporate networks (e.g. **Netskope**) intercept TLS, which makes Docker builds and
 image pulls fail with certificate errors unless the corporate CA is trusted inside the build.
 
-Every Dockerfile in this series supports an **`EXTRA_CERTS_DIR`** build argument that trusts
-extra CA certificates **only when you provide them** — it is a complete no-op on a normal
-laptop, so nothing breaks when you're off the corporate network.
+Every Dockerfile in this series supports a **BuildKit build secret** (`--mount=type=secret`)
+that trusts a corporate CA certificate **only during the RUN steps that need it** — the cert
+is never written to any image layer, so it cannot be extracted from a pulled image.
 
 **To use it:**
 
-1. Export your corporate CA certificate(s) as PEM files with a `.crt` extension.
-2. Drop them into the talk's `certs/` folder (each talk has one, empty by default).
-3. Build as normal. The build copies the certs into the trust store and runs
-   `update-ca-certificates` automatically. Compose files already pass the arg through:
+1. Export your corporate CA certificate as a PEM file named `netskope.crt`.
+2. Save it as `certs/netskope.crt` inside the relevant talk folder.
+3. Pass it as a BuildKit secret. The build guards every network step with the cert and removes
+   it within the same layer:
 
    ```bash
    # Plain docker build
-   docker build --build-arg EXTRA_CERTS_DIR=certs -t myapp .
+   docker build --secret id=netskope_cert,src=certs/netskope.crt -t myapp .
 
-   # Docker Compose (the arg is wired into every build: block already)
-   EXTRA_CERTS_DIR=certs docker compose up --build
+   # Docker Compose (the secret is wired into every build: block already)
+   NETSKOPE_CERT=./certs/netskope.crt docker compose build
    ```
 
-**How it works:** each Dockerfile copies `${EXTRA_CERTS_DIR}/` (default `certs`, an empty
-placeholder) into `/usr/local/share/ca-certificates/extra/` and only refreshes the CA bundle
-if that directory contains files. Shell-less runtimes (distroless, Chainguard, scratch) trust
-the refreshed bundle by copying it from a build stage instead.
+**How it works:** each `RUN` step that makes a network call mounts the secret at
+`/run/secrets/netskope_cert`. If the file is present and non-empty it is added to the CA trust
+store (or passed via a tool-specific env var), the network command runs, then the cert is
+removed and the trust store is restored — all within the same `RUN`. Nothing persists.
+Omitting `--secret` (or leaving `certs/netskope.crt` absent) is a complete no-op.
 
 **Non-Dockerfile builders** (Aspire, Buildpacks/`pack`, `ko`, `jib`, Nixpacks, Spin/Wasm)
-can't use a Dockerfile arg — for those, trust the corporate CA at the **host/OS level** (and
+can't use Dockerfile secrets — for those, trust the corporate CA at the **host/OS level** (and
 the Docker daemon). The relevant talk's `notes/` explains the exact workaround
 (`SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, JVM trust store, `pack --volume`, etc.).
 
-> Real certificates dropped into `certs/` are git-ignored; only the `.gitkeep` placeholder is committed.
+> Real certificates saved to `certs/` are git-ignored; only the `.gitkeep` placeholder is committed.
 
 ## Repository Structure
 

@@ -19,7 +19,7 @@ This talk demonstrates how to find, interpret, and reduce container image risk u
 - **`notes/`** — speaker guide (the teaching narrative — what to say).
 - **`src/`** — the TypeScript / Express API used by the images.
 - **`scripts/`** — optional helper scripts for Trivy, Docker Scout, signing, and SBOM demos.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -35,7 +35,7 @@ docker build -f Dockerfile.hardened -t myapp:hardened .
 - `DELETE /items/:id`
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`**. Every Docker build in this talk trusts it automatically via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Leave `certs/` empty and nothing changes. See the repo root README for the full explanation.
+Save your corporate CA as **`certs/netskope.crt`**. Build with `--secret id=netskope_cert,src=certs/netskope.crt` to trust it during the build — the cert is not stored in any image layer. Omit `--secret` when not behind a proxy. See the repo root README for the full explanation.
 
 ## Next in the series
 Talk 08 moves from image hardening into developer environments with dev containers and Codespaces.

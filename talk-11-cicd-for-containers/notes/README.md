@@ -34,7 +34,7 @@ Start with a small FastAPI service that can be built locally, then move the same
 ### 5) Buildx Bake as a declarative build graph
 - Introduce `docker-bake.hcl` as the build definition for teams that have outgrown long command lines. It keeps context, Dockerfile path, tags, cache policy, platforms, and attestations in one reviewable file.
 - Bake is especially useful when one repository has several images or variants because targets can inherit shared settings and CI can override variables without rewriting the graph.
-- In this talk the Bake target mirrors the CI multi-arch story and passes through `EXTRA_CERTS_DIR` so certificate trust behaves the same locally and in runners.
+- In this talk the Bake target mirrors the CI multi-arch story and passes through `NETSKOPE_CERT` as a build secret so certificate trust behaves the same locally and in runners.
 > Expert aside: Bake is not a different builder; it is a declarative front end to BuildKit. The value is repeatability and reviewability, not a new image format.
 
 ### 6) Supply-chain controls: scanning, Cosign, SBOMs, and SLSA
@@ -72,8 +72,8 @@ Start with a small FastAPI service that can be built locally, then move the same
 Use SLSA levels as a maturity model rather than a checklist to recite. For this talk, the practical story is provenance generation, short-lived identity, signed artefacts, and deployment of the same immutable image through environments. hadolint is the small extra quality gate that keeps Dockerfile mistakes from entering that supply-chain path.
 
 ## Netskope / corporate proxy note
-This talk uses Dockerfile-based builds locally, through Buildx Bake, and inside CI. The build stage trusts optional corporate CA certificates copied from `certs/` via the `EXTRA_CERTS_DIR` build argument before `pip install` performs network I/O. The default folder is empty, so the step is a no-op on a normal laptop. Behind Netskope or another TLS-intercepting proxy, export the corporate root as PEM, rename it with a `.crt` extension if necessary, and place it in `certs/` before building.
+This talk uses Dockerfile-based builds locally, through Buildx Bake, and inside CI. The build stage trusts an optional corporate CA certificate via a BuildKit secret (`--secret id=netskope_cert,src=certs/netskope.crt`) before `pip install` performs network I/O. The cert is never written to any image layer — omit `--secret` when not behind a TLS-intercepting proxy.
 
-CI needs the same distinction: the runner host must trust the corporate CA for runner-level operations such as registry login, checkout, and cloud CLI calls, while the Docker build needs `EXTRA_CERTS_DIR` so package installation inside the build container trusts the same CA. Do not hardcode certificate content in workflow YAML or pipeline variables; provide `.crt` files through the build context or runner image according to your organisation's secret-handling policy.
+CI needs the same distinction: the runner host must trust the corporate CA for runner-level operations such as registry login, checkout, and cloud CLI calls, while the Docker build receives the cert via the `NETSKOPE_CERT` pipeline secret. GitHub Actions passes it via `secrets: netskope_cert=${{ secrets.NETSKOPE_CERT }}` and Azure Pipelines via `--secret id=netskope_cert,env=NETSKOPE_CERT`. Never hardcode certificate content in workflow YAML or pipeline variable definitions.
 
 The FastAPI runtime in this demo does not make outbound TLS calls, so the runtime stage only carries a comment. If the application later calls HTTPS APIs at runtime, copy or install the refreshed CA bundle into the runtime image as well.

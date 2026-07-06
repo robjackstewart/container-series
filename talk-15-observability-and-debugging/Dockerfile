@@ -1,28 +1,14 @@
+# syntax=docker/dockerfile:1
 # Stage 1: Build
 FROM elixir:1.15-alpine AS build
 
 # --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
-# Default EXTRA_CERTS_DIR=certs points at an empty placeholder, so this is a NO-OP
-# on a normal laptop and only activates when real .crt files are supplied in certs/.
-# Pass real certs with:  docker build --build-arg EXTRA_CERTS_DIR=certs ...
-ARG EXTRA_CERTS_DIR=certs
-COPY ${EXTRA_CERTS_DIR}/ /usr/local/share/ca-certificates/extra/
-RUN if ls -A /usr/local/share/ca-certificates/extra/ 2>/dev/null | grep -q .; then \
-        if command -v update-ca-certificates >/dev/null 2>&1; then \
-            update-ca-certificates; \
-        else \
-            cat /usr/local/share/ca-certificates/extra/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
-        fi; \
-    fi
+# Supply a corporate CA cert as a BuildKit secret — the cert is not stored in any image layer:
+#   docker build --secret id=netskope_cert,src=certs/netskope.crt -t myapp .
+# Omit --secret when not behind a proxy; the cert guard in each network RUN is a no-op.
 # -----------------------------------------------------------------------------
 
-# Install build dependencies
-RUN apk add --no-cache build-base git nodejs npm
-
 WORKDIR /app
-
-# Install Hex + Rebar
-RUN mix local.hex --force && mix local.rebar --force
 
 # Set build environment
 ENV MIX_ENV=prod
@@ -30,7 +16,19 @@ ENV MIX_ENV=prod
 # Install dependencies
 COPY src/mix.exs ./
 COPY src/config ./config
-RUN mix deps.get --only prod && mix deps.compile
+RUN --mount=type=secret,id=netskope_cert <<'EOF'
+set -e
+if [ -s /run/secrets/netskope_cert ]; then
+  cp /etc/ssl/certs/ca-certificates.crt /tmp/ca-bundle.orig
+  cat /run/secrets/netskope_cert >> /etc/ssl/certs/ca-certificates.crt
+fi
+apk add --no-cache build-base git nodejs npm
+mix local.hex --force && mix local.rebar --force
+mix deps.get --only prod && mix deps.compile
+if [ -s /run/secrets/netskope_cert ]; then
+  mv /tmp/ca-bundle.orig /etc/ssl/certs/ca-certificates.crt
+fi
+EOF
 
 # Copy application source
 COPY src/lib ./lib

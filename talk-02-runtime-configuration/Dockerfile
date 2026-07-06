@@ -18,28 +18,33 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR ${APP_HOME}
 
 # --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
-# Default EXTRA_CERTS_DIR=certs points at an empty placeholder, so this is a NO-OP
-# on a normal laptop and only activates when real .crt files are supplied in certs/.
-# Pass real certs with:  docker build --build-arg EXTRA_CERTS_DIR=certs ...
-ARG EXTRA_CERTS_DIR=certs
-COPY ${EXTRA_CERTS_DIR}/ /usr/local/share/ca-certificates/extra/
-RUN if ls -A /usr/local/share/ca-certificates/extra/ 2>/dev/null | grep -q .; then \
-        if command -v update-ca-certificates >/dev/null 2>&1; then \
-            update-ca-certificates; \
-        else \
-            cat /usr/local/share/ca-certificates/extra/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
-        fi; \
-    fi
+# Supply a corporate CA cert as a BuildKit secret — the cert is not stored in any image layer:
+#   docker build --secret id=netskope_cert,src=certs/netskope.crt -t myapp .
+# Omit --secret when not behind a proxy; the cert guard in each network RUN is a no-op.
 # -----------------------------------------------------------------------------
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=secret,id=netskope_cert <<'EOF'
+set -e
+if [ -s /run/secrets/netskope_cert ]; then
+  cp /etc/ssl/certs/ca-certificates.crt /tmp/ca-bundle.orig
+  cp /run/secrets/netskope_cert /usr/local/share/ca-certificates/netskope.crt 2>/dev/null || true
+  update-ca-certificates 2>/dev/null || cat /run/secrets/netskope_cert >> /etc/ssl/certs/ca-certificates.crt
+fi
+apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+if [ -s /run/secrets/netskope_cert ]; then
+  rm -f /usr/local/share/ca-certificates/netskope.crt
+  mv /tmp/ca-bundle.orig /etc/ssl/certs/ca-certificates.crt
+fi
+EOF
 
 COPY src/requirements.txt ./requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
+    --mount=type=secret,id=netskope_cert <<'EOF'
+set -e
+if [ -s /run/secrets/netskope_cert ]; then export PIP_CERT=/run/secrets/netskope_cert REQUESTS_CA_BUNDLE=/run/secrets/netskope_cert; fi
+pip install --no-cache-dir -r requirements.txt
+EOF
 
 # Demo only: BuildKit mounts the secret for this step without storing it as ARG/ENV.
 # The following pattern is intentionally shown because `cat /run/secrets/mysecret > /tmp/secret_used.txt`

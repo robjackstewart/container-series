@@ -10,26 +10,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
-# Default EXTRA_CERTS_DIR=certs points at an empty placeholder, so this is a NO-OP
-# on a normal laptop and only activates when real .crt files are supplied in certs/.
-# Pass real certs with:  docker build --build-arg EXTRA_CERTS_DIR=certs ...
-ARG EXTRA_CERTS_DIR=certs
-COPY ${EXTRA_CERTS_DIR}/ /usr/local/share/ca-certificates/extra/
-RUN if ls -A /usr/local/share/ca-certificates/extra/ 2>/dev/null | grep -q .; then \
-        if command -v update-ca-certificates >/dev/null 2>&1; then \
-            update-ca-certificates; \
-        else \
-            cat /usr/local/share/ca-certificates/extra/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
-        fi; \
-    fi
+# Supply a corporate CA cert as a BuildKit secret — the cert is not stored in any image layer:
+#   docker build --secret id=netskope_cert,src=certs/netskope.crt -t myapp .
+# Omit --secret when not behind a proxy; the cert guard in each network RUN is a no-op.
 # -----------------------------------------------------------------------------
 
 RUN python -m venv "$VIRTUAL_ENV"
 
 COPY src/requirements.txt ./src/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip && \
-    pip install -r ./src/requirements.txt
+    --mount=type=secret,id=netskope_cert <<'EOF'
+set -e
+if [ -s /run/secrets/netskope_cert ]; then export PIP_CERT=/run/secrets/netskope_cert REQUESTS_CA_BUNDLE=/run/secrets/netskope_cert; fi
+pip install --upgrade pip && pip install -r ./src/requirements.txt
+EOF
 
 COPY src ./src
 RUN python -m compileall ./src

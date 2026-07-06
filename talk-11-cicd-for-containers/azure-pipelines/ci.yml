@@ -71,8 +71,9 @@ stages:
               Dockerfile: $(workingDirectory)/Dockerfile
               buildContext: $(workingDirectory)
               tags: myapp:$(Build.SourceVersion)
-              # Behind Netskope, provide PEM .crt files via certs/; never hardcode certificate content here.
-              arguments: --build-arg EXTRA_CERTS_DIR=certs
+              # Behind Netskope, store the corporate CA in an ADO secret variable named NETSKOPE_CERT
+              # and reference it here. The cert is not stored in any image layer.
+              arguments: --secret id=netskope_cert,env=NETSKOPE_CERT
               addPipelineData: false
 
           - script: |
