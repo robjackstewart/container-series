@@ -8,15 +8,14 @@ WORKDIR /home/gradle/src
 # Omit --secret when not behind a proxy; the cert guard in each network RUN is a no-op.
 # -----------------------------------------------------------------------------
 
-RUN chown -R gradle:gradle /home/gradle/src
-COPY --chown=gradle:gradle build.gradle.kts settings.gradle.kts ./
-COPY --chown=gradle:gradle src ./src
+COPY build.gradle.kts settings.gradle.kts ./
+COPY src ./src
 RUN --mount=type=secret,id=netskope_cert <<'EOF'
 set -e
 if [ -s /run/secrets/netskope_cert ]; then
   keytool -importcert -noprompt -alias netskope -file /run/secrets/netskope_cert -cacerts -storepass changeit
 fi
-su -s /bin/sh gradle -c 'gradle --no-daemon shadowJar'
+gradle --no-daemon shadowJar
 if [ -s /run/secrets/netskope_cert ]; then
   keytool -delete -alias netskope -cacerts -storepass changeit
 fi

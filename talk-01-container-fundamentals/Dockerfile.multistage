@@ -18,11 +18,7 @@ WORKDIR /source
 # Copy the project file first so package restore can be cached independently from source code changes.
 COPY src/WeatherApi.csproj ./src/
 
-# Restore dependencies with a BuildKit cache mount.
-# The NuGet package cache survives across builds on the builder, which speeds up repeated restores.
-# Because this cache lives outside the final image, it improves build performance without bloating runtime layers.
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    --mount=type=secret,id=netskope_cert <<'EOF'
+RUN --mount=type=secret,id=netskope_cert <<'EOF'
 set -e
 if [ -s /run/secrets/netskope_cert ]; then
   cp /etc/ssl/certs/ca-certificates.crt /tmp/ca-bundle.orig

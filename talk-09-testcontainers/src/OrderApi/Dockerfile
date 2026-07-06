@@ -10,8 +10,7 @@ WORKDIR /src
 # -----------------------------------------------------------------------------
 
 COPY src/OrderApi/OrderApi.csproj ./src/OrderApi/
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    --mount=type=secret,id=netskope_cert <<'EOF'
+RUN --mount=type=secret,id=netskope_cert <<'EOF'
 set -e
 if [ -s /run/secrets/netskope_cert ]; then
   cp /etc/ssl/certs/ca-certificates.crt /tmp/ca-bundle.orig

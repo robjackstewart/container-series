@@ -27,6 +27,7 @@ EOF
 
 COPY api/. .
 RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod tidy && \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api .
 
 FROM gcr.io/distroless/static-debian12
