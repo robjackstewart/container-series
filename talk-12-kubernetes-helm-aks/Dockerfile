@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM gradle:8.5-jdk21 AS build
+FROM gradle:8.12-jdk21 AS build
 WORKDIR /home/gradle/src
 
 # --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
