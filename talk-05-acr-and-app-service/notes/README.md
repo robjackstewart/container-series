@@ -68,6 +68,6 @@ ACR Artifact Streaming is for large-image cold-start scenarios. It prepares an i
 Image quarantine is the governance companion: publish the image, scan or approve it, then promote it by tag, digest, or deployment configuration only after it passes policy. The Rust API is intentionally small, so the value in this talk is the operating model rather than a dramatic performance improvement.
 
 ## Netskope / corporate proxy note
-This talk uses a Dockerfile for image builds. The build stage trusts optional corporate CA certificates copied into `certs/` through the `EXTRA_CERTS_DIR` build argument before `apt` and Cargo perform network access. The files must be PEM-encoded `.crt` files; if a proxy exports `.pem`, rename it to `.crt` after confirming it is PEM text.
+This talk uses a Dockerfile for image builds. The build stage trusts an optional corporate CA certificate via a BuildKit secret (`--secret id=netskope_cert,src=certs/netskope.crt`) before `apt` and Cargo perform network access. The cert is never written to any image layer — omit `--secret` when not behind a TLS-intercepting proxy.
 
-The final image is Debian slim and the demo API does not make outbound TLS calls, so there is no shell-less runtime CA bundle copy to maintain. If the Rust service later calls HTTPS dependencies at runtime, keep `ca-certificates` in the runtime image and confirm the platform trust path before shipping it.
+The final image is Debian slim and the demo API does not make outbound TLS calls, so no runtime CA bundle copy is needed. If the Rust service later calls HTTPS dependencies at runtime, keep `ca-certificates` in the runtime image and confirm the platform trust path before shipping it.

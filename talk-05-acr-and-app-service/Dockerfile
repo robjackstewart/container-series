@@ -1,36 +1,33 @@
+# syntax=docker/dockerfile:1
 # Stage 1: Build
-FROM rust:1.75-slim AS builder
+FROM rust:slim AS builder
 
 WORKDIR /app
 
 # --- Corporate CA trust (e.g. Netskope TLS interception) ---------------------
-# Default EXTRA_CERTS_DIR=certs points at an empty placeholder, so this is a NO-OP
-# on a normal laptop and only activates when real .crt files are supplied in certs/.
-# Pass real certs with:  docker build --build-arg EXTRA_CERTS_DIR=certs ...
-ARG EXTRA_CERTS_DIR=certs
-COPY ${EXTRA_CERTS_DIR}/ /usr/local/share/ca-certificates/extra/
-RUN if ls -A /usr/local/share/ca-certificates/extra/ 2>/dev/null | grep -q .; then \
-        if command -v update-ca-certificates >/dev/null 2>&1; then \
-            update-ca-certificates; \
-        else \
-            cat /usr/local/share/ca-certificates/extra/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
-        fi; \
-    fi
+# Supply a corporate CA cert as a BuildKit secret — the cert is not stored in any image layer:
+#   docker build --secret id=netskope_cert,src=certs/netskope.crt -t myapp .
+# Omit --secret when not behind a proxy; the cert guard in each network RUN is a no-op.
 # -----------------------------------------------------------------------------
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Cache dependencies by copying manifests first
+# Install build dependencies and prime the dependency cache.
 COPY Cargo.toml Cargo.lock* ./
-
-# Create a dummy main.rs to build dependencies
-RUN mkdir src && echo 'fn main() {}' > src/main.rs && \
-    cargo build --release && \
-    rm -f target/release/deps/rust_todo_api*
+RUN --mount=type=secret,id=netskope_cert <<'EOF'
+set -e
+if [ -s /run/secrets/netskope_cert ]; then
+  cp /etc/ssl/certs/ca-certificates.crt /tmp/ca-bundle.orig
+  cp /run/secrets/netskope_cert /usr/local/share/ca-certificates/netskope.crt 2>/dev/null || true
+  update-ca-certificates 2>/dev/null || cat /run/secrets/netskope_cert >> /etc/ssl/certs/ca-certificates.crt
+fi
+apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+mkdir src && echo 'fn main() {}' > src/main.rs
+cargo build --release
+rm -f target/release/deps/rust_todo_api*
+if [ -s /run/secrets/netskope_cert ]; then
+  rm -f /usr/local/share/ca-certificates/netskope.crt
+  mv /tmp/ca-bundle.orig /etc/ssl/certs/ca-certificates.crt
+fi
+EOF
 
 # Copy actual source
 COPY src ./src

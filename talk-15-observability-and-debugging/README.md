@@ -18,7 +18,7 @@ Run an Elixir / Phoenix API with a complete local observability stack, then prac
 - **`src/`** — the Elixir / Phoenix JSON API with OpenTelemetry and Prometheus instrumentation.
 - **`compose.yaml`**, **`otel-collector-config.yaml`**, **`prometheus.yml`**, **`fluent-bit.conf`**, **`grafana/`** — the observability stack.
 - **`scripts/`** — optional helper scripts for stack setup and debugging examples.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -27,7 +27,7 @@ docker compose up -d --build
 ```
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`**. Every Docker build in this talk trusts it automatically via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Leave `certs/` empty and nothing changes. See the repo root README for the full explanation.
+Save your corporate CA as **`certs/netskope.crt`**. Build with `--secret id=netskope_cert,src=certs/netskope.crt` to trust it during the build, or run `NETSKOPE_CERT=./certs/netskope.crt docker compose build` — the cert is not stored in any image layer. Omit the secret when not behind a proxy. See the repo root README for the full explanation.
 
 ## Next in the series
 This is the final talk: use it as the operational wrap-up that connects image design, runtime behaviour, and production support.

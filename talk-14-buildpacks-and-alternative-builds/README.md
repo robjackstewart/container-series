@@ -23,7 +23,7 @@ Build container images without maintaining Dockerfiles for every stack, then com
 - **`node-app/`** — Express app for Nixpacks.
 - **`comparison/`** — comparison Dockerfile and build-tool notes.
 - **`scripts/`** — optional helper scripts for each builder.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -32,7 +32,7 @@ pack build ruby-sinatra-pack --path ./ruby-app --builder paketobuildpacks/builde
 ```
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`** as the talk-level placeholder. Non-Dockerfile builders also need host or tool-specific trust: `pack` can mount host certs or use trust-related build environment, `ko` can use `SSL_CERT_FILE`, Jib can use a JVM trust store, and Nixpacks follows host trust. The comparison Dockerfile builds with **`ruby-app/`** as its context, so its `EXTRA_CERTS_DIR` default resolves to **`ruby-app/certs/`**. See **`notes/README.md`** and **`RUNSHEET.md`** for the full presenter guidance.
+Save your corporate CA as **`ruby-app/certs/netskope.crt`** for the comparison Dockerfile (which uses `ruby-app/` as its build context). Build with `--secret id=netskope_cert,src=ruby-app/certs/netskope.crt` to trust it during the build — the cert is not stored in any image layer. Non-Dockerfile builders (`pack`, `ko`, Jib, Nixpacks) need host or tool-specific trust instead: see **`notes/README.md`** and **`RUNSHEET.md`** for the full presenter guidance.
 
 ## Next in the series
 Talk 15 closes the course with observability and debugging for containerised workloads.

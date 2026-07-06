@@ -57,10 +57,11 @@ jobs:
           REGISTRY=$(ACR_LOGIN_SERVER)
           REPO=$REGISTRY/$(imageName)
 
-          # Behind Netskope, provide PEM .crt files via certs/; never hardcode certificate content here.
+          # Behind Netskope, store the corporate CA in an ADO secret variable named NETSKOPE_CERT.
+          # The cert is not stored in any image layer.
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --build-arg EXTRA_CERTS_DIR=certs \
+            ${NETSKOPE_CERT:+--secret id=netskope_cert,env=NETSKOPE_CERT} \
             --provenance=true \
             --sbom=true \
             --push \

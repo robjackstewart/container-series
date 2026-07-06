@@ -1,14 +1,14 @@
 # RUNSHEET — Talk 05: ACR and App Service
 
 > One-page cue card. Keep it on your **private** screen; share the example folder + terminal.
-> Behind Netskope? Drop your CA `.crt` into `certs/` first — every build trusts it automatically.
+> Behind Netskope? Copy your CA cert to `certs/netskope.crt` and add `--secret id=netskope_cert,src=certs/netskope.crt` to any `docker build` command below.
 
 ## Pre-flight (before you walk in)
 - [ ] Azure CLI installed — `az version`
 - [ ] Logged in — `az login`
 - [ ] Correct subscription selected — `az account show --query "{name:name, id:id, tenant:tenantId}" -o table`
 - [ ] Docker Desktop running for the optional local push path — `docker version`
-- [ ] (if behind Netskope) corporate `.crt` copied into `certs/`
+- [ ] (if behind Netskope) corporate `.crt` saved as `certs/netskope.crt`
 - [ ] Warm the caches — `az provider register --namespace Microsoft.ContainerRegistry; az provider register --namespace Microsoft.Web`
 - [ ] Terminal in `talk-05-acr-and-app-service`, large font, speaker-guide closed
 
@@ -58,7 +58,8 @@ curl -fsS "$APP_URL/info"
 
 # 6) Optional local build-and-push path for contrast
 az acr login --name "$ACR_NAME"
-docker build --build-arg EXTRA_CERTS_DIR=certs -t "$ACR_LOGIN_SERVER/$IMAGE_NAME:local" .
+docker build --secret id=netskope_cert,src=certs/netskope.crt -t "$ACR_LOGIN_SERVER/$IMAGE_NAME:local" .
+# Omit --secret if not behind Netskope.
 docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:local"
 
 # 7) Build a candidate image, deploy it to staging, then swap

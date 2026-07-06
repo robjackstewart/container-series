@@ -19,7 +19,7 @@ Use Testcontainers.NET to run integration tests against real infrastructure with
 - **`notes/`** — speaker guide (the teaching narrative — what to say).
 - **`src/OrderApi/`** — the ASP.NET Core minimal API and Dockerfile.
 - **`tests/OrderApi.Tests/`** — xUnit tests, Testcontainers fixtures, and `WebApplicationFactory` integration.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -28,7 +28,7 @@ dotnet test .\OrderApi.sln
 ```
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`**. The API Docker build trusts it automatically via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Testcontainers also pulls PostgreSQL, Redis, and optional RabbitMQ images at test time, so Docker Desktop or the Docker host must trust the same corporate CA for registry pulls. Leave `certs/` empty and normal builds are unchanged. See the repo root README for the full explanation.
+Save your corporate CA as **`certs/netskope.crt`**. Build with `--secret id=netskope_cert,src=certs/netskope.crt` to trust it during the API image build — the cert is not stored in any image layer. Testcontainers also pulls PostgreSQL, Redis, and optional RabbitMQ images at test time, so Docker Desktop or the Docker host must also trust the same corporate CA for registry pulls. See the repo root README for the full explanation.
 
 ## Next in the series
 Talk 10 moves from test-time dependencies into .NET Aspire and local orchestration for cloud-native development.

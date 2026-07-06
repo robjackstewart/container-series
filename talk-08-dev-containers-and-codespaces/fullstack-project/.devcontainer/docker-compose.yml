@@ -2,8 +2,8 @@ services:
   api:
     build:
       context: ../api
-      args:
-        EXTRA_CERTS_DIR: ${EXTRA_CERTS_DIR:-certs}
+      secrets:
+        - netskope_cert
     volumes: ["../..:/workspace:cached"]
     command: sleep infinity
     environment:
@@ -17,3 +17,9 @@ services:
     volumes: ["devdata:/var/lib/postgresql/data", "../db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro"]
 volumes:
   devdata:
+
+# Default to an empty placeholder so builds work without a cert.
+# Override with: NETSKOPE_CERT=../api/certs/netskope.crt docker compose build
+secrets:
+  netskope_cert:
+    file: ${NETSKOPE_CERT:-../api/certs/.gitkeep}

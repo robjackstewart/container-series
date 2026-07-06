@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
-      args:
-        EXTRA_CERTS_DIR: ${EXTRA_CERTS_DIR:-certs}
+      secrets:
+        - netskope_cert
     environment:
       PORT: 8080
       DB_HOST: postgres
@@ -68,8 +68,6 @@ services:
     build:
       context: .
       dockerfile: nginx/Dockerfile
-      args:
-        EXTRA_CERTS_DIR: ${EXTRA_CERTS_DIR:-certs}
     depends_on:
       api:
         condition: service_healthy
@@ -91,3 +89,9 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+
+# Default to an empty placeholder so `docker compose build` works without a cert.
+# Override with: NETSKOPE_CERT=./certs/netskope.crt docker compose build
+secrets:
+  netskope_cert:
+    file: ${NETSKOPE_CERT:-./certs/.gitkeep}

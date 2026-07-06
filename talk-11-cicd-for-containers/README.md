@@ -24,7 +24,7 @@ Build, test, scan, publish, sign, and deploy a small containerised API through m
 - **`azure-pipelines/`** — Azure Pipelines equivalents for CI, CD, and multi-arch builds.
 - **`docker-bake.hcl`** — declarative Buildx Bake target for repeatable image builds.
 - **`scripts/`** — helper script for Azure Container Apps deployment.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -41,7 +41,7 @@ docker build -t talk-11-fastapi:dev .
 - `DELETE /items/{id}`
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`**. Every Docker build in this talk trusts it automatically via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Leave `certs/` empty and nothing changes. See the repo root README for the full explanation.
+Save your corporate CA as **`certs/netskope.crt`**. Build with `--secret id=netskope_cert,src=certs/netskope.crt` to trust it during the build — the cert is not stored in any image layer. In CI, store the cert content in a pipeline secret named `NETSKOPE_CERT`; see the GitHub Actions and Azure Pipelines workflows for the wiring. Omit `--secret` when not behind a proxy. See the repo root README for the full explanation.
 
 ## Next in the series
 Talk 12 moves from CI/CD pipelines into Kubernetes, Helm, and AKS deployment patterns.

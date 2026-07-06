@@ -22,7 +22,7 @@ Deploy a Kotlin/Ktor API to Kubernetes first as raw manifests, then as a reusabl
 - **`helm/container-series-app/`** — the Helm chart for the same workload.
 - **`infra/`** — Bicep for AKS, ACR, monitoring, and registry pull access.
 - **`scripts/`** — optional end-to-end AKS deployment helper.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -31,7 +31,7 @@ helm upgrade --install container-series-app ./helm/container-series-app --namesp
 ```
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`**. Every Docker build in this talk trusts it automatically via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Leave `certs/` empty and nothing changes. See the repo root README for the full explanation.
+Save your corporate CA as **`certs/netskope.crt`**. Build with `--secret id=netskope_cert,src=certs/netskope.crt` to trust it during the build — the cert is not stored in any image layer. Omit `--secret` when not behind a proxy. See the repo root README for the full explanation.
 
 ## Next in the series
 Talk 13 moves from Kubernetes orchestration into WebAssembly containers and Spin/Wasm packaging.

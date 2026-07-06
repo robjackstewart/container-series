@@ -19,7 +19,7 @@ Standardise local and cloud developer environments with Dev Containers, reusable
 - **`python-project/`** — Flask API using a prebuilt Python dev container image.
 - **`typescript-project/`** — Express API using a custom Dockerfile-based dev container.
 - **`fullstack-project/`** — Go API + PostgreSQL using a Compose-backed dev container.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -28,7 +28,7 @@ devcontainer up --workspace-folder .\fullstack-project
 ```
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`**. Dockerfile-backed dev container builds in this talk trust it via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Leave `certs/` empty and nothing changes. See the repo root README for the full explanation, and see **`RUNSHEET.md`** for the build-context-specific cert folders used by the nested examples.
+Save your corporate CA as **`certs/netskope.crt`** (or the appropriate nested `certs/` for each example). Dockerfile-backed dev container builds trust it via `--secret id=netskope_cert,src=<path>/netskope.crt` — the cert is not stored in any image layer. Omit `--secret` when not behind a proxy. See the repo root README for the full explanation, and see **`RUNSHEET.md`** for the build-context-specific paths used by each example.
 
 ## Next in the series
 Talk 09 moves from developer environments into container orchestration and running multiple services together.

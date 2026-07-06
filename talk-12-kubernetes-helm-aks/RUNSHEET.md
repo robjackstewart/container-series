@@ -1,7 +1,7 @@
 # RUNSHEET — Talk 12: Kubernetes, Helm & AKS
 
 > One-page cue card. Keep it on your **private** screen; share the example folder + terminal.
-> Behind Netskope? Drop your CA `.crt` into `certs/` first — every build trusts it automatically.
+> Behind Netskope? Copy your CA cert to `certs/netskope.crt` and add `--secret id=netskope_cert,src=certs/netskope.crt` to any `docker build` command below.
 
 ## Pre-flight (before you walk in)
 - [ ] Docker Desktop running — `docker version`
@@ -9,7 +9,7 @@
 - [ ] Helm 3 installed — `helm version`
 - [ ] Azure CLI logged in for the AKS path — `az account show`
 - [ ] Optional cluster add-ons ready — metrics-server, NGINX ingress, and cert-manager
-- [ ] (if behind Netskope) corporate `.crt` copied into `certs/`
+- [ ] (if behind Netskope) corporate `.crt` saved as `certs/netskope.crt`
 - [ ] Warm the caches — `docker pull gradle:8.5-jdk21; docker pull eclipse-temurin:21-jre-alpine; docker pull busybox:1.36`
 - [ ] Terminal in `talk-12-kubernetes-helm-aks`, large font, speaker-guide closed
 
@@ -33,7 +33,8 @@ az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME"
 
 # 3) Build and push the Ktor image
 az acr login --name "$ACR_NAME"
-docker build --build-arg EXTRA_CERTS_DIR=certs -t "$ACR_SERVER/$IMAGE_NAME:$IMAGE_TAG" .
+docker build --secret id=netskope_cert,src=certs/netskope.crt -t "$ACR_SERVER/$IMAGE_NAME:$IMAGE_TAG" .
+# Omit --secret if not behind Netskope.
 docker push "$ACR_SERVER/$IMAGE_NAME:$IMAGE_TAG"
 
 # 4) Raw manifest path: apply and point the Deployment at this image

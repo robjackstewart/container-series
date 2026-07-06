@@ -1,0 +1,6 @@
+# Force LF line endings for files that must not have CRLF
+# (Docker BuildKit heredocs break with CRLF on Windows)
+Dockerfile        text eol=lf
+Dockerfile.*      text eol=lf
+*.sh              text eol=lf
+*.kts             text eol=lf

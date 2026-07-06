@@ -1,7 +1,7 @@
 # RUNSHEET — Talk 06: Azure Container Apps
 
 > One-page cue card. Keep it on your **private** screen; share the example folder + terminal.
-> Behind Netskope? Drop your CA `.crt` into `certs/` first — every build trusts it automatically.
+> Behind Netskope? Copy your CA cert to `certs/netskope.crt` and add `--secret id=netskope_cert,src=certs/netskope.crt` to any `docker build` command below.
 
 ## Pre-flight (before you walk in)
 - [ ] Docker Desktop running — `docker version`
@@ -9,7 +9,7 @@
 - [ ] ACA extension available — `az extension add --name containerapp --upgrade --yes`
 - [ ] Logged in — `az login` and `az account show -o table`
 - [ ] Correct subscription selected — set `AZURE_SUBSCRIPTION` or run `az account set --subscription <id-or-name>`
-- [ ] (if behind Netskope) corporate `.crt` copied into `certs/`
+- [ ] (if behind Netskope) corporate `.crt` saved as `certs/netskope.crt`
 - [ ] Warm the caches — `docker pull maven:3.9.9-eclipse-temurin-21; docker pull eclipse-temurin:21-jre`
 - [ ] Terminal in `talk-06-azure-container-apps`, large font, speaker-guide closed
 
@@ -36,9 +36,13 @@ export ACR_SERVER="$(az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_
 az acr login --name "$ACR_NAME"
 
 # 2) Build and push the Spring Boot service and job images
-DOCKER_BUILDKIT=1 docker build -f service/Dockerfile --build-arg EXTRA_CERTS_DIR=certs -t "$ACR_SERVER/order-service:$IMAGE_TAG" .
+DOCKER_BUILDKIT=1 docker build -f service/Dockerfile \
+  ${NETSKOPE_CERT:+--secret id=netskope_cert,src="$NETSKOPE_CERT"} \
+  -t "$ACR_SERVER/order-service:$IMAGE_TAG" .  # export NETSKOPE_CERT=certs/netskope.crt if behind Netskope
 docker push "$ACR_SERVER/order-service:$IMAGE_TAG"
-DOCKER_BUILDKIT=1 docker build -f job/Dockerfile --build-arg EXTRA_CERTS_DIR=certs -t "$ACR_SERVER/order-job:$IMAGE_TAG" .
+DOCKER_BUILDKIT=1 docker build -f job/Dockerfile \
+  ${NETSKOPE_CERT:+--secret id=netskope_cert,src="$NETSKOPE_CERT"} \
+  -t "$ACR_SERVER/order-job:$IMAGE_TAG" .
 docker push "$ACR_SERVER/order-job:$IMAGE_TAG"
 
 # 3) Deploy the ACA environment, Dapr component, service, and scheduled job

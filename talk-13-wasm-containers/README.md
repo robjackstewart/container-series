@@ -21,8 +21,8 @@ Build and compare a Rust WebAssembly HTTP component with a traditional .NET 8 co
 - **`traditional-app/`** — .NET 8 minimal API and Dockerfile for the container comparison.
 - **`k8s/`** — SpinKube RuntimeClass and deployment examples.
 - **`scripts/`** — optional helper scripts for building and Docker + Wasm demos.
-- **`certs/`** — drop a corporate CA `.crt` here if you're behind Netskope (optional; empty = no-op).
-- **`traditional-app/certs/`** — same certificate placeholder for the traditional app's Docker build context.
+- **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
+- **`traditional-app/certs/`** — save `netskope.crt` here for the traditional app's Docker build context.
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
@@ -31,7 +31,7 @@ cd spin-app && spin build && spin up
 ```
 
 ## Behind a TLS-intercepting proxy (Netskope)?
-Copy your corporate CA (`.crt`, PEM) into **`certs/`** for the talk notes and into **`traditional-app/certs/`** for the .NET Docker build, because that Dockerfile is built with `traditional-app/` as its build context. The Dockerfile trusts it automatically via the `EXTRA_CERTS_DIR` build-arg (default `certs`). Spin builds, pulls, and Wasm OCI registry operations use the host trust store, so also trust the CA at the OS and Docker Desktop level. See the repo root README for the full explanation.
+Save your corporate CA as **`traditional-app/certs/netskope.crt`** (the .NET Dockerfile uses `traditional-app/` as its build context). Build with `--secret id=netskope_cert,src=traditional-app/certs/netskope.crt` to trust it during the build — the cert is not stored in any image layer. Spin builds, pulls, and Wasm OCI registry operations use the host trust store, so also trust the CA at the OS and Docker Desktop level. Omit `--secret` when not behind a proxy. See the repo root README for the full explanation.
 
 ## Next in the series
 Talk 14 moves from Wasm into Dockerfile-free image builders such as Buildpacks, ko, Jib, and Nixpacks.
