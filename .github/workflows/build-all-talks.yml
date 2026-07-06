@@ -1,0 +1,196 @@
+# Build every talk to prove nothing is broken.
+#
+# Two matrix jobs run in parallel:
+#   docker-build  — one entry per Dockerfile (21 total)
+#   compose-build — one entry per compose file that has a build: section (3 total)
+#
+# No secrets or cloud credentials are required. Every Dockerfile uses
+# --mount=type=secret,id=netskope_cert; BuildKit defaults secrets to
+# required=false, so the mount is a clean no-op when the secret is absent.
+
+name: Build all talks
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+
+concurrency:
+  group: build-all-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build every Dockerfile individually
+  # ---------------------------------------------------------------------------
+  docker-build:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false   # show every failing talk, not just the first
+      matrix:
+        include:
+          # --- Talk 01: Container Fundamentals (C# .NET 8) -------------------
+          - name: talk-01
+            context: talk-01-container-fundamentals
+            file: talk-01-container-fundamentals/Dockerfile
+
+          - name: talk-01-multistage
+            context: talk-01-container-fundamentals
+            file: talk-01-container-fundamentals/Dockerfile.multistage
+            build-args: APP_VERSION=ci   # only Dockerfile that requires this arg
+
+          - name: talk-01-scratch
+            context: talk-01-container-fundamentals/bonus
+            file: talk-01-container-fundamentals/bonus/Dockerfile.scratch
+
+          # --- Talk 02: Runtime Configuration (Python Flask) -----------------
+          - name: talk-02
+            context: talk-02-runtime-configuration
+            file: talk-02-runtime-configuration/Dockerfile
+
+          # --- Talk 03: OCI Artifacts & Registries (R / Plumber) -------------
+          - name: talk-03
+            context: talk-03-oci-artifacts-and-registries
+            file: talk-03-oci-artifacts-and-registries/Dockerfile
+
+          # --- Talk 04: Docker Compose (Go / Gin) ----------------------------
+          # Both Dockerfiles use the talk root as context (not the subdir).
+          - name: talk-04-api
+            context: talk-04-docker-compose
+            file: talk-04-docker-compose/api/Dockerfile
+
+          - name: talk-04-nginx
+            context: talk-04-docker-compose
+            file: talk-04-docker-compose/nginx/Dockerfile
+
+          # --- Talk 05: ACR & App Service (Rust / Actix-web) -----------------
+          - name: talk-05
+            context: talk-05-acr-and-app-service
+            file: talk-05-acr-and-app-service/Dockerfile
+
+          # --- Talk 06: Azure Container Apps (Java / Spring Boot) -------------
+          # Both Dockerfiles use the talk root as context (not service/ or job/).
+          - name: talk-06-service
+            context: talk-06-azure-container-apps
+            file: talk-06-azure-container-apps/service/Dockerfile
+
+          - name: talk-06-job
+            context: talk-06-azure-container-apps
+            file: talk-06-azure-container-apps/job/Dockerfile
+
+          # --- Talk 07: Container Security (TypeScript / Express) -------------
+          - name: talk-07-vulnerable
+            context: talk-07-container-security
+            file: talk-07-container-security/Dockerfile.vulnerable
+
+          - name: talk-07-hardened
+            context: talk-07-container-security
+            file: talk-07-container-security/Dockerfile.hardened
+
+          - name: talk-07-chainguard
+            context: talk-07-container-security
+            file: talk-07-container-security/Dockerfile.chainguard
+
+          # --- Talk 08: Dev Containers & Codespaces (multi-language) ----------
+          - name: talk-08-ts-devcontainer
+            context: talk-08-dev-containers-and-codespaces/typescript-project/.devcontainer
+            file: talk-08-dev-containers-and-codespaces/typescript-project/.devcontainer/Dockerfile
+
+          - name: talk-08-fullstack-api
+            context: talk-08-dev-containers-and-codespaces/fullstack-project
+            file: talk-08-dev-containers-and-codespaces/fullstack-project/api/Dockerfile
+
+          # --- Talk 09: Testcontainers (C# / .NET 8 + xUnit) -----------------
+          # Dockerfile lives in src/OrderApi/ but the build context is the talk root.
+          - name: talk-09
+            context: talk-09-testcontainers
+            file: talk-09-testcontainers/src/OrderApi/Dockerfile
+
+          # (Talk 10 — .NET Aspire — has no Dockerfile; nothing to build here.)
+
+          # --- Talk 11: CI/CD for Containers (Python / FastAPI) ---------------
+          - name: talk-11
+            context: talk-11-cicd-for-containers
+            file: talk-11-cicd-for-containers/Dockerfile
+
+          # --- Talk 12: Kubernetes, Helm & AKS (Kotlin / Ktor) ---------------
+          - name: talk-12
+            context: talk-12-kubernetes-helm-aks
+            file: talk-12-kubernetes-helm-aks/Dockerfile
+
+          # --- Talk 13: WebAssembly Containers (Rust Wasm + C#) ---------------
+          # traditional-app/ has its own certs/ subfolder as the build context.
+          - name: talk-13-traditional
+            context: talk-13-wasm-containers/traditional-app
+            file: talk-13-wasm-containers/traditional-app/Dockerfile
+
+          # --- Talk 14: Buildpacks & Alternative Builds (Ruby / Sinatra) ------
+          # Dockerfile.ruby builds with ruby-app/ as context, not comparison/.
+          - name: talk-14-ruby
+            context: talk-14-buildpacks-and-alternative-builds/ruby-app
+            file: talk-14-buildpacks-and-alternative-builds/comparison/Dockerfile.ruby
+
+          # --- Talk 15: Observability & Debugging (Elixir / Phoenix) ----------
+          - name: talk-15
+            context: talk-15-observability-and-debugging
+            file: talk-15-observability-and-debugging/Dockerfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-args: ${{ matrix.build-args }}
+          push: false
+          # load: false (default) — image is validated but not exported to the
+          # local daemon; combined with type=gha cache this is the fastest
+          # pure-validation path.
+          tags: ${{ matrix.name }}:ci
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+
+  # ---------------------------------------------------------------------------
+  # Build every compose file that has a build: section
+  # ---------------------------------------------------------------------------
+  compose-build:
+    name: Compose ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # talk-04 builds the Go API and Nginx images.
+          # The secrets: block defaults to certs/.gitkeep — no cert needed.
+          - name: talk-04
+            file: talk-04-docker-compose/compose.yaml
+
+          # talk-08 fullstack builds the Go API; context is ../api relative to
+          # the compose file, which Docker Compose resolves automatically.
+          - name: talk-08-fullstack
+            file: talk-08-dev-containers-and-codespaces/fullstack-project/.devcontainer/docker-compose.yml
+
+          # talk-15 builds the Elixir/Phoenix app.
+          - name: talk-15
+            file: talk-15-observability-and-debugging/compose.yaml
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Compose build ${{ matrix.name }}
+        run: docker compose -f ${{ matrix.file }} build
