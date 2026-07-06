@@ -31,7 +31,7 @@ COPY . .
 EXPOSE 4567
 ENV RACK_ENV=production PORT=4567
 
-RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
+RUN useradd -m appuser && chown -R appuser /app
 USER appuser
 
 CMD ["bundle", "exec", "ruby", "app.rb"]
