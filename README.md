@@ -127,9 +127,24 @@ is never written to any image layer, so it cannot be extracted from a pulled ima
 
 **To use it:**
 
-1. Export your corporate CA certificate as a PEM file named `netskope.crt`.
-2. Save it as `certs/netskope.crt` inside the relevant talk folder.
-3. Pass it as a BuildKit secret. The build guards every network step with the cert and removes
+1. Put the certificate in every talk's `certs/` folder. One command does the lot:
+
+   ```powershell
+   .\scripts\sync-netskope-cert.ps1
+   ```
+
+   It resolves the CA automatically — the Netskope agent's own copy under
+   `%ProgramData%\netskope\stagent\` first (that stays current through a CA rotation), falling
+   back to an export from the Windows root store — then writes it as `netskope.crt` into all
+   `certs/` folders. Re-running is safe: identical files are left alone, a *different*
+   certificate is reported rather than overwritten unless you pass `-Force`, and `-Remove`
+   strips them all again. Use `-Source <path>` to distribute a specific PEM, or
+   `-WhatIf` to preview.
+
+   Doing it by hand instead: export your corporate CA as a PEM named `netskope.crt` and save it
+   as `certs/netskope.crt` inside the relevant talk folder.
+
+2. Pass it as a BuildKit secret. The build guards every network step with the cert and removes
    it within the same layer:
 
    ```bash
@@ -159,6 +174,9 @@ the Docker daemon). The relevant talk's `notes/` explains the exact workaround
 container-series/
 ├── README.md                               ← You are here
 ├── .gitignore                              ← Ignores build output (bin/obj, target, node_modules, …) and real certs
+├── .gitattributes                          ← Forces LF on Dockerfiles/scripts (CRLF breaks BuildKit heredocs)
+├── scripts/
+│   └── sync-netskope-cert.ps1              ← Copies the corporate CA into every talk's certs/ folder
 ├── talk-01-container-fundamentals/         ← C# .NET 8
 │   ├── README.md                           ← Slim index for the talk
 │   ├── RUNSHEET.md                         ← One-page cue card (present from this)

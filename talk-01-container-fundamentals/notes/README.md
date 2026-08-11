@@ -26,6 +26,26 @@ Start with the mental model: a container is not a tiny virtual machine, it is a 
 - Use the single-stage image to explain `FROM`, `WORKDIR`, `COPY`, `RUN`, `EXPOSE`, `ENV`, and `ENTRYPOINT` without overloading the room.
 > Expert aside: broad copy steps such as `COPY . .` are convenient, but Docker cache keys include the copied content. A README edit or local artefact can invalidate an expensive restore layer unless the Dockerfile first copies only stable dependency descriptors.
 
+### 3a) The build has its own trust store (the deliberate failure)
+This is a five-minute detour that lands the build context idea harder than any diagram, and it is worth running live rather than describing.
+
+- Set it up as a puzzle before revealing anything. `dotnet restore` works perfectly in the presenter's terminal. The *same command*, against the *same project*, fails the moment it runs inside the builder. Ask the room why, and let them sit with it.
+- The answer is the point of the whole section: `RUN` does not execute on the host. It executes inside a container built from the base image, with that image's filesystem — including its CA trust store. Your laptop trusts the corporate CA because IT put it there; `mcr.microsoft.com/dotnet/sdk:8.0` has never heard of your employer.
+- Show the bare failure first. `error NU1301: Unable to load the service index for source https://api.nuget.org/v3/index.json` is deliberately unhelpful, and that ambiguity is useful teaching material: it reads like "no network", which is what sends people down the wrong debugging path.
+- Then narrow it with `curl` in the same base image: `curl: (60) SSL certificate problem: self-signed certificate in certificate chain`. The connection succeeded. The certificate was rejected. Those are very different problems with the same symptom.
+- Explain the mechanism plainly: a TLS-intercepting proxy terminates the connection, inspects it, and re-signs it with its own CA. From inside the container, something is presenting itself as nuget.org with a certificate signed by an unknown authority. Refusing that is TLS doing its job. The container is right and we are the ones lying to it.
+
+Then show the fix, and be deliberate about *which* fix:
+
+- The tempting options are both bad. Disabling certificate validation trades a build problem for a security hole. `COPY netskope.crt` into the image works, but it bakes your organisation's interception CA into a layer that ships to every consumer of the image — visible in `docker history`, extractable from any pull.
+- `RUN --mount=type=secret` is the right shape. The cert is mounted at `/run/secrets/netskope_cert` for the lifetime of one `RUN` instruction, added to the trust store, used, and removed — with the original bundle restored before the layer is committed. Nothing about it enters the image.
+- Prove it rather than claiming it. There is no `netskope.crt` in the finished image and no `/run/secrets` directory. This is a good moment to point out that "trust me, it's clean" is not an engineering standard.
+- Close the loop on portability: the guard is `if [ -s /run/secrets/netskope_cert ]`, so omitting `--secret` is a complete no-op. The same Dockerfile works on the corporate network, at home, and in CI without modification — which is the actual requirement, not just "works on my machine".
+
+> Expert aside: a secret mount's *contents* are not part of the layer cache key — only the fact that a mount is declared. That is what makes the same Dockerfile cacheable across machines with different certs, but it also means a build that already has a cached restore layer will happily "succeed" without the cert. Hence `--no-cache` when demonstrating the failure. It is also the reason secret mounts cannot be used to invalidate cache on purpose.
+
+> Second aside, if the room includes anyone who builds with non-Dockerfile tooling: Aspire, Buildpacks, `ko`, `jib`, and Nixpacks have no equivalent of `--mount=type=secret`, so they need the CA trusted at host/OS level instead. Talk 14 hits this properly.
+
 ### 4) Layers, cache reuse, and why ordering matters
 - `docker history` is the bridge from Dockerfile text to image reality: each instruction contributes metadata or filesystem changes.
 - Good Dockerfiles put stable, expensive work early and volatile source changes later. For .NET, that means restoring after the project file is copied, then copying the rest of the source before publish.
@@ -58,12 +78,16 @@ Start with the mental model: a container is not a tiny virtual machine, it is a 
 - Which is riskier: a large image with familiar tools inside, or a tiny image that makes live debugging harder?
 - What should be decided at image build time, and what must remain runtime configuration?
 - If a source edit forces dependency restore every time, what Dockerfile ordering mistake would you suspect first?
+- A command works in your terminal and fails in `RUN`. What is different about the environment, and where else does that difference bite?
+- Your build needs a credential or certificate to fetch dependencies. How do you supply it without it ending up in the shipped image?
 
 ## Key takeaways (the close)
 - Containers package an application and its dependencies while sharing the host kernel.
 - Dockerfile ordering matters because images are layered and cache keys are content-sensitive.
 - `ARG` is build-time input; `ENV` and run arguments shape runtime behaviour.
 - `.dockerignore` is part of the security and performance story, not housekeeping.
+- `RUN` executes inside the image, not on your machine — its network, filesystem, and CA trust store are the base image's, not yours.
+- Build-time secrets belong in `--mount=type=secret`, never in a `COPY` or an `ARG`.
 - Multi-stage builds are the normal production pattern for compiled applications.
 - Running as a non-root user is a small change with a meaningful security benefit.
 - BuildKit cache mounts can improve feedback loops without bloating runtime images.
@@ -75,5 +99,7 @@ The `scratch` example is deliberately extreme: a static Go binary copied into an
 
 ## Netskope / corporate proxy note
 This talk uses Dockerfiles for all image builds. The SDK build stages trust an optional corporate CA certificate via a BuildKit secret (`--secret id=netskope_cert,src=certs/netskope.crt`) before NuGet restore runs. The cert is never written to any image layer — omit `--secret` when not behind a TLS-intercepting proxy.
+
+Behind Netskope this is promoted from a footnote to a teaching beat — see **section 3a** above and steps 2–5 of the runsheet, which build without the cert on purpose to show *why* it is needed. If you are presenting off the corporate network the failing build will simply succeed; narrate the expected output from the runsheet instead of forcing a fake failure.
 
 The final ASP.NET Core runtime image in the multi-stage example does not make outbound TLS calls during the demo, so no additional CA bundle is copied there. The `scratch` bonus image has no CA trust store at all; copy `ca-certificates.crt` from a builder only if the binary itself needs outbound TLS.
