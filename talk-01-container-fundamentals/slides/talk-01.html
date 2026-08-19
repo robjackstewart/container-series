@@ -1,0 +1,2211 @@
+<title>Containers From First Principles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+/* ─── TOKENS · light is bare :root; dark redefines tokens only ─── */
+:root {
+  --bg:#e8ebee; --surface:#f7f8fa; --surface-2:#e2e6ea;
+  --fg:#14181e; --fg-2:#49525f; --fg-3:#7c8693;
+  --rule:#c7ccd4; --rule-soft:#d8dce2;
+  --accent:#b3701a; --accent-bg:#f5e6cd;
+  --kept:#1c6d64;  --kept-bg:#d5e7e4;
+  --drop:#a53f2e;  --drop-bg:#f2dcd7;
+  /* demo slides commit to one dark world in both themes */
+  --term-bg:#10151b; --term-panel:#171e26; --term-fg:#e9edf1; --term-fg-2:#98a4b2;
+  --term-rule:#2a333f; --term-accent:#e5a94f; --term-good:#63c0af; --term-bad:#e58a72;
+  --font-display:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --font-body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
+  --pad:clamp(1.1rem,3.1vmin,2.8rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#0e1218; --surface:#151a22; --surface-2:#1d242e;
+    --fg:#e7eaee; --fg-2:#a4aeba; --fg-3:#6f7986;
+    --rule:#2b333f; --rule-soft:#212932;
+    --accent:#e0a349; --accent-bg:#33281a;
+    --kept:#4fb3a4;  --kept-bg:#17302e;
+    --drop:#e07a63;  --drop-bg:#33211d;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#0e1218; --surface:#151a22; --surface-2:#1d242e;
+  --fg:#e7eaee; --fg-2:#a4aeba; --fg-3:#6f7986;
+  --rule:#2b333f; --rule-soft:#212932;
+  --accent:#e0a349; --accent-bg:#33281a;
+  --kept:#4fb3a4;  --kept-bg:#17302e;
+  --drop:#e07a63;  --drop-bg:#33211d;
+}
+
+/* ─── FRAME ─── */
+* { box-sizing:border-box; }
+html,body { height:100%; }
+body {
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--font-body); font-size:clamp(14px,1.55vmin,19px); line-height:1.5;
+  display:grid; grid-template-rows:auto minmax(0,1fr) auto; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+.rail {
+  display:flex; align-items:center; gap:1rem;
+  padding:0.5rem clamp(0.7rem,2.2vmin,1.6rem);
+  font-family:var(--font-mono); font-size:clamp(9.5px,1.15vmin,12.5px);
+  letter-spacing:0.09em; text-transform:uppercase; color:var(--fg-3);
+  border-bottom:1px solid var(--rule-soft); min-height:2.3rem;
+}
+.rail--bottom { border-bottom:0; border-top:1px solid var(--rule-soft); }
+.rail__spacer { flex:1 1 auto; }
+.rail__section { color:var(--accent); font-weight:600; }
+.ticks { display:flex; gap:3px; align-items:center; }
+.ticks__t {
+  width:clamp(5px,0.85vmin,10px); height:3px; background:var(--rule);
+  border:0; padding:0; cursor:pointer; transition:background 120ms linear,height 120ms linear;
+}
+.ticks__t[data-seen="1"] { background:var(--fg-3); }
+.ticks__t[aria-current="true"] { background:var(--accent); height:7px; }
+.ticks__t:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.navbtn {
+  font-family:var(--font-mono); font-size:inherit; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--fg-2); background:transparent; border:1px solid var(--rule);
+  padding:0.28em 0.7em; cursor:pointer;
+}
+.navbtn:hover { color:var(--fg); border-color:var(--fg-3); }
+.navbtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.counter { font-variant-numeric:tabular-nums; color:var(--fg-2); }
+
+/* ─── SLIDES ─── */
+.deck { position:relative; min-height:0; }
+.slide { position:absolute; inset:0; display:none; overflow-y:auto; overflow-x:hidden; }
+.slide.is-active { display:block; }
+@media (prefers-reduced-motion: no-preference) {
+  .slide.is-active > .stage { animation:rise 250ms cubic-bezier(.2,.7,.3,1) both; }
+}
+@keyframes rise { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+.stage {
+  position:relative; width:min(100%,1250px); min-height:100%; margin-inline:auto;
+  padding:var(--pad) calc(var(--pad) * 1.15);
+  display:flex; flex-direction:column; justify-content:center;
+  gap:clamp(0.55rem,1.5vmin,1.2rem);
+}
+.stage::before, .stage::after {
+  content:""; position:absolute; width:13px; height:13px; pointer-events:none;
+  border-color:var(--rule); opacity:0.9;
+}
+.stage::before { top:calc(var(--pad) * 0.4); left:calc(var(--pad) * 0.4); border-left:1px solid; border-top:1px solid; }
+.stage::after  { bottom:calc(var(--pad) * 0.4); right:calc(var(--pad) * 0.4); border-right:1px solid; border-bottom:1px solid; }
+
+/* ─── TYPE ─── */
+.eyebrow {
+  font-family:var(--font-mono); font-size:clamp(9.5px,1.2vmin,13px);
+  letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); font-weight:500; margin:0;
+}
+h1 { font-family:var(--font-display); font-weight:800; font-size:clamp(2rem,6.1vmin,4.2rem);
+     line-height:0.99; letter-spacing:-0.022em; text-wrap:balance; margin:0; }
+h2 { font-family:var(--font-display); font-weight:700; font-size:clamp(1.3rem,3.5vmin,2.4rem);
+     line-height:1.06; letter-spacing:-0.016em; text-wrap:balance; margin:0; }
+h3 { font-family:var(--font-display); font-weight:600; font-size:clamp(0.98rem,2vmin,1.3rem);
+     line-height:1.15; letter-spacing:-0.008em; margin:0; }
+.lead { font-size:clamp(0.92rem,1.9vmin,1.26rem); color:var(--fg-2); max-width:64ch; margin:0; text-wrap:pretty; }
+.lead strong { color:var(--fg); font-weight:600; }
+p { margin:0; }
+.dim { color:var(--fg-3); }
+.hl { color:var(--accent); font-weight:600; }
+code,.mono { font-family:var(--font-mono); font-size:0.92em; }
+code { background:var(--surface-2); padding:0.08em 0.34em; border-radius:2px; }
+.note { font-family:var(--font-mono); font-size:clamp(9px,1.12vmin,12px); color:var(--fg-3);
+        letter-spacing:0.02em; line-height:1.45; max-width:92ch; }
+.note b { color:var(--fg-2); font-weight:600; }
+/* presenter cues are visible by default; N hides them if you ever need a clean slide */
+body.hide-notes .note:not(.note--always) { display:none; }
+body.no-chrome > .rail { display:none; }
+.navbtn[aria-pressed="true"] { color:var(--accent); border-color:var(--accent); }
+
+/* ─── FIGURES ─── */
+figure { margin:0; display:flex; flex-direction:column; gap:0.45rem; min-width:0; }
+figure svg { display:block; width:100%; max-width:100%; height:auto; max-height:60vh; color:var(--fg); }
+figcaption { font-family:var(--font-mono); font-size:clamp(9px,1.12vmin,12px); color:var(--fg-3);
+             letter-spacing:0.02em; text-wrap:pretty; max-width:90ch; }
+.svgwrap { overflow-x:auto; min-width:0; }
+.s-box  { fill:var(--surface);   stroke:var(--rule);   stroke-width:1.5; }
+.s-box2 { fill:var(--surface-2); stroke:var(--rule);   stroke-width:1.5; }
+.s-none { fill:none;             stroke:var(--rule);   stroke-width:1.5; }
+.s-acc  { fill:var(--accent-bg); stroke:var(--accent); stroke-width:1.75; }
+.s-kept { fill:var(--kept-bg);   stroke:var(--kept);   stroke-width:1.75; }
+.s-drop { fill:var(--drop-bg);   stroke:var(--drop);   stroke-width:1.75; }
+.s-ghost{ fill:none; stroke:var(--rule); stroke-width:1.25; stroke-dasharray:4 4; }
+.s-line { stroke:currentColor; stroke-width:1.5; fill:none; opacity:0.7; }
+.s-lead { stroke:var(--fg-3); stroke-width:1; fill:none; stroke-dasharray:3 3; }
+.s-rule { stroke:var(--rule); stroke-width:1; }
+.s-accl { stroke:var(--accent); stroke-width:1.75; fill:none; }
+.s-keptl{ stroke:var(--kept);   stroke-width:1.75; fill:none; }
+.s-dropl{ stroke:var(--drop);   stroke-width:1.75; fill:none; }
+text { font-family:var(--font-body); fill:currentColor; }
+.t    { font-size:13px; }
+.t-s  { font-size:11px; fill:var(--fg-2); }
+.t-xs { font-size:9.5px; fill:var(--fg-3); letter-spacing:0.07em; text-transform:uppercase; }
+.t-m  { font-family:var(--font-mono); font-size:12px; }
+.t-ms { font-family:var(--font-mono); font-size:10.5px; fill:var(--fg-2); }
+.t-b  { font-weight:600; }
+.t-acc{ fill:var(--accent); }
+.t-kept{ fill:var(--kept); }
+.t-drop{ fill:var(--drop); }
+.t-num{ font-variant-numeric:tabular-nums; }
+
+/* ─── COMPONENTS ─── */
+.cols { display:grid; gap:clamp(0.75rem,2.2vmin,1.9rem); min-width:0; }
+.cols--2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.cols--3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.cols--side { grid-template-columns:minmax(0,0.8fr) minmax(0,1.2fr); align-items:center; }
+.cols--side-r { grid-template-columns:minmax(0,1.2fr) minmax(0,0.8fr); align-items:center; }
+@media (max-width:760px) { .cols--2,.cols--3,.cols--side,.cols--side-r { grid-template-columns:minmax(0,1fr); } }
+.card { background:var(--surface); border:1px solid var(--rule);
+        padding:clamp(0.55rem,1.5vmin,1rem); display:flex; flex-direction:column; gap:0.3rem; min-width:0; }
+.card__k { font-family:var(--font-mono); font-size:clamp(9px,1.08vmin,11.5px);
+           letter-spacing:0.13em; text-transform:uppercase; color:var(--fg-3); }
+.card--acc  { border-color:var(--accent); background:var(--accent-bg); }
+.card--kept { border-color:var(--kept);   background:var(--kept-bg); }
+.card--drop { border-color:var(--drop);   background:var(--drop-bg); }
+.card--acc .card__k  { color:var(--accent); }
+.card--kept .card__k { color:var(--kept); }
+.card--drop .card__k { color:var(--drop); }
+.card p { font-size:clamp(0.8rem,1.55vmin,1rem); color:var(--fg-2); }
+.card strong { color:var(--fg); }
+.list { display:flex; flex-direction:column; gap:0.5rem; margin:0; padding:0; list-style:none; }
+.list li { display:grid; grid-template-columns:auto minmax(0,1fr); gap:0.7rem; align-items:baseline;
+           font-size:clamp(0.84rem,1.7vmin,1.1rem); color:var(--fg-2); }
+.list li strong { color:var(--fg); font-weight:600; }
+.list__m { font-family:var(--font-mono); font-size:0.78em; color:var(--accent);
+           letter-spacing:0.06em; font-variant-numeric:tabular-nums; }
+.code { font-family:var(--font-mono); font-size:clamp(0.64rem,1.38vmin,0.92rem); line-height:1.6;
+        background:var(--surface); border:1px solid var(--rule); padding:clamp(0.5rem,1.4vmin,0.95rem);
+        overflow-x:auto; white-space:pre; color:var(--fg-2); tab-size:2; min-width:0; }
+.code b { color:var(--fg); font-weight:600; }
+.code .c { color:var(--fg-3); }
+.code .k { color:var(--accent); font-weight:600; }
+.code .kk{ color:var(--kept); font-weight:600; }
+.code .dd{ color:var(--drop); font-weight:600; }
+
+/* ─── DEMO SLIDES ─── */
+.slide--demo { background:var(--term-bg); color:var(--term-fg); }
+.slide--demo .stage::before, .slide--demo .stage::after { border-color:var(--term-rule); }
+.slide--demo h2, .slide--demo h3 { color:var(--term-fg); }
+.slide--demo .eyebrow { color:var(--term-accent); }
+.slide--demo .lead { color:var(--term-fg-2); }
+.slide--demo .lead strong { color:var(--term-fg); }
+.slide--demo .note { color:var(--term-fg-2); }
+.slide--demo .note b { color:var(--term-fg); }
+.demo-badge { display:inline-flex; align-items:center; gap:0.5rem; font-family:var(--font-mono);
+  font-size:clamp(9.5px,1.2vmin,13px); letter-spacing:0.16em; text-transform:uppercase;
+  color:var(--term-bg); background:var(--term-accent); padding:0.25em 0.7em; font-weight:600; align-self:flex-start; }
+.term { font-family:var(--font-mono); font-size:clamp(0.66rem,1.42vmin,0.95rem); line-height:1.68;
+  background:var(--term-panel); border:1px solid var(--term-rule); border-left:3px solid var(--term-accent);
+  padding:clamp(0.5rem,1.5vmin,1rem); overflow-x:auto; white-space:pre; color:var(--term-fg); min-width:0; }
+.term .p { color:var(--term-accent); user-select:none; }
+.term .c { color:var(--term-fg-2); }
+.term .g { color:var(--term-good); }
+.term .b { color:var(--term-bad); }
+.term--out { border-left-color:var(--term-rule); color:var(--term-fg-2); }
+.beats { display:flex; flex-direction:column; gap:clamp(0.45rem,1.3vmin,0.85rem); }
+.beat { display:grid; grid-template-columns:auto minmax(0,1fr); gap:0.75rem; align-items:start; }
+.beat__n { font-family:var(--font-mono); font-weight:600; font-variant-numeric:tabular-nums;
+  color:var(--term-accent); border:1px solid var(--term-accent); width:1.9em; height:1.9em;
+  display:grid; place-items:center; font-size:clamp(0.7rem,1.45vmin,0.92rem); }
+.beat__t { font-size:clamp(0.78rem,1.55vmin,1.02rem); color:var(--term-fg); }
+.beat__t em { color:var(--term-fg-2); font-style:normal; }
+
+/* ─── TITLE / SECTION ─── */
+.title-meta { display:flex; flex-wrap:wrap; gap:0.4rem 1.6rem; font-family:var(--font-mono);
+  font-size:clamp(9.5px,1.2vmin,12.5px); letter-spacing:0.11em; text-transform:uppercase;
+  color:var(--fg-3); border-top:1px solid var(--rule); padding-top:0.75rem; }
+.title-meta b { color:var(--fg-2); font-weight:500; }
+.sect { display:grid; grid-template-columns:auto minmax(0,1fr); gap:clamp(1rem,3vmin,2.5rem); align-items:center; }
+.sect__n { font-family:var(--font-display); font-weight:800; font-size:clamp(3.2rem,14vmin,10rem);
+  line-height:0.8; color:var(--accent); font-variant-numeric:tabular-nums; letter-spacing:-0.04em; }
+.sect__body { display:flex; flex-direction:column; gap:0.6rem; border-left:1px solid var(--rule);
+  padding-left:clamp(0.9rem,2.8vmin,2rem); }
+
+/* ─── OVERVIEW ─── */
+.ov { position:fixed; inset:0; background:var(--bg); z-index:50; padding:clamp(1rem,3vmin,2.4rem);
+      overflow-y:auto; display:none; }
+.ov.is-open { display:block; }
+.ov__grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:0.45rem; margin-top:1.1rem; }
+.ov__i { text-align:left; background:var(--surface); border:1px solid var(--rule); color:var(--fg-2);
+  font:inherit; padding:0.45rem 0.6rem; cursor:pointer; display:grid;
+  grid-template-columns:auto minmax(0,1fr); gap:0.5rem; align-items:baseline; }
+.ov__i:hover { border-color:var(--accent); color:var(--fg); }
+.ov__i[aria-current="true"] { border-color:var(--accent); background:var(--accent-bg); color:var(--fg); }
+.ov__i .n { font-family:var(--font-mono); font-size:0.78em; color:var(--fg-3); font-variant-numeric:tabular-nums; }
+.ov__i .s { font-size:0.9em; }
+.ov__i:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.kbd { font-family:var(--font-mono); font-size:0.85em; border:1px solid var(--rule);
+       padding:0.1em 0.4em; color:var(--fg-2); background:var(--surface); }
+</style>
+
+<header class="rail">
+  <span>Container Series &nbsp;·&nbsp; Talk 01</span>
+  <span class="rail__spacer"></span>
+  <span class="rail__section" id="sectionLabel">Container Fundamentals</span>
+</header>
+
+<main class="deck" id="deck">
+<!-- ════════ 1 · TITLE ════════ -->
+<section class="slide slide--title is-active" data-section="Container Fundamentals" data-title="Title">
+  <div class="stage">
+    <p class="eyebrow">Container Series · Talk 01 of 15</p>
+    <h1>Containers, from<br>first principles</h1>
+    <p class="lead">A container is not a small virtual machine. It is <strong>a process, with its dependencies packaged alongside it</strong>, and a few kernel features drawing a boundary around it. Everything else in this talk follows from that one sentence.</p>
+    <div class="title-meta">
+      <span>Language <b>C# · .NET 8 minimal API</b></span>
+      <span>Runtime <b>60 minutes, 5 live demos</b></span>
+      <span>Next <b>Talk 02 — Runtime configuration</b></span>
+    </div>
+    <p class="note note--always"><b>Navigating:</b> <span class="kbd">→</span> <span class="kbd">space</span> next · <span class="kbd">←</span> back · <span class="kbd">O</span> slide index · <span class="kbd">Home</span>/<span class="kbd">End</span> jump. The URL tracks the slide, so a reload lands you back where you were.<br><b>Presenting:</b> <span class="kbd">N</span> hides the grey speaker cues if you ever want a clean slide · <span class="kbd">C</span> hides the top and bottom bars.</p>
+  </div>
+</section>
+
+<!-- ════════ 2 · ROADMAP ════════ -->
+<section class="slide" data-section="Container Fundamentals" data-title="The route">
+  <div class="stage">
+    <p class="eyebrow">The route</p>
+    <h2>Nine steps, and the boundary matters every time</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 262" role="img" aria-label="Nine sections of the talk laid out as a sequence, with five live demo points marked, grouped into mental model, build mechanics, and shipping quality.">
+        <!-- spine -->
+        <line class="s-rule" x1="20" y1="128" x2="720" y2="128"></line>
+        <!-- group brackets -->
+        <text class="t-xs" x="20" y="26">Mental model</text>
+        <text class="t-xs" x="252" y="26">How a build actually happens</text>
+        <text class="t-xs" x="558" y="26">Shipping something good</text>
+        <line class="s-rule" x1="20" y1="34" x2="228" y2="34"></line>
+        <line class="s-rule" x1="252" y1="34" x2="536" y2="34"></line>
+        <line class="s-rule" x1="558" y1="34" x2="720" y2="34"></line>
+
+        <!-- nodes: x centres -->
+        <g>
+          <!-- 1 -->
+          <circle class="s-acc" cx="52" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="52" y="133" text-anchor="middle">1</text>
+          <text class="t-s" x="52" y="166" text-anchor="middle">Packaged</text>
+          <text class="t-s" x="52" y="180" text-anchor="middle">processes</text>
+          <!-- 2 -->
+          <circle class="s-acc" cx="176" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="176" y="133" text-anchor="middle">2</text>
+          <text class="t-s" x="176" y="166" text-anchor="middle">Client, daemon,</text>
+          <text class="t-s" x="176" y="180" text-anchor="middle">registry</text>
+          <!-- 3 -->
+          <circle class="s-acc" cx="300" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="300" y="133" text-anchor="middle">3</text>
+          <text class="t-s" x="300" y="166" text-anchor="middle">First</text>
+          <text class="t-s" x="300" y="180" text-anchor="middle">Dockerfile</text>
+          <!-- 3a -->
+          <circle class="s-drop" cx="394" cy="128" r="17"></circle>
+          <text class="t-m t-b t-drop" x="394" y="132" text-anchor="middle">3a</text>
+          <text class="t-s t-drop" x="394" y="166" text-anchor="middle">The build's own</text>
+          <text class="t-s t-drop" x="394" y="180" text-anchor="middle">trust store</text>
+          <!-- 4 -->
+          <circle class="s-acc" cx="488" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="488" y="133" text-anchor="middle">4</text>
+          <text class="t-s" x="488" y="166" text-anchor="middle">Layers</text>
+          <text class="t-s" x="488" y="180" text-anchor="middle">and cache</text>
+          <!-- 5 -->
+          <circle class="s-acc" cx="580" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="580" y="133" text-anchor="middle">5</text>
+          <text class="t-s" x="580" y="166" text-anchor="middle">Build vs</text>
+          <text class="t-s" x="580" y="180" text-anchor="middle">run time</text>
+          <!-- 6 -->
+          <circle class="s-kept" cx="654" cy="128" r="17"></circle>
+          <text class="t-m t-b t-kept" x="654" y="133" text-anchor="middle">6</text>
+          <text class="t-s t-kept" x="654" y="166" text-anchor="middle">Multi-</text>
+          <text class="t-s t-kept" x="654" y="180" text-anchor="middle">stage</text>
+          <!-- 7-9 -->
+          <circle class="s-box2" cx="712" cy="128" r="13"></circle>
+          <text class="t-ms" x="712" y="132" text-anchor="middle">7–9</text>
+          <text class="t-s" x="712" y="200" text-anchor="middle">Ops</text>
+        </g>
+
+        <!-- demo markers above spine -->
+        <g>
+          <rect class="s-acc" x="34" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-acc" x="52" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="52" y1="93" x2="52" y2="111"></line>
+
+          <rect class="s-drop" x="376" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-drop" x="394" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="394" y1="93" x2="394" y2="111"></line>
+
+          <rect class="s-acc" x="470" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-acc" x="488" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="488" y1="93" x2="488" y2="111"></line>
+
+          <rect class="s-kept" x="636" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-kept" x="654" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="654" y1="93" x2="654" y2="111"></line>
+
+          <rect class="s-box2" x="694" y="76" width="36" height="17"></rect>
+          <text class="t-xs" x="712" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="712" y1="93" x2="712" y2="111"></line>
+        </g>
+
+        <!-- through-line -->
+        <text class="t-s t-b" x="20" y="240">The one idea underneath all nine:</text>
+        <text class="t-s" x="222" y="240">container quality is about boundaries — what enters the build, what becomes a layer, what ships, what is supplied at run time.</text>
+      </svg>
+      <figcaption>Section 3a is the odd one out on purpose: it is where a build that works on your laptop fails inside the builder, and the reason turns out to be the whole point of section 2.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 3 · §1 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§1 · Mental model" data-title="§1 Mental model">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">1</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section one</p>
+        <h2>Containers are packaged<br>processes, not tiny VMs</h2>
+        <p class="lead">If you take the VM analogy too literally, everything else in the talk lands wrong — image size, boot time, isolation, debugging. So let's fix the model first.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 4 · VM vs CONTAINER ════════ -->
+<section class="slide" data-section="§1 · Mental model" data-title="Not a small VM">
+  <div class="stage">
+    <p class="eyebrow">The difference is one whole row</p>
+    <h2>A VM virtualises hardware. A container isolates a process.</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 330" role="img" aria-label="Side by side stacks. The virtual machine stack has hardware, host OS, hypervisor, and three VMs each containing a full guest operating system. The container stack has the same hardware and one shared host kernel, a container runtime, and three containers containing only app and libraries, with the guest OS space empty.">
+        <!-- ── column headers ── -->
+        <text class="t-xs" x="8" y="14">The VM way</text>
+        <text class="t-s t-drop" x="8" y="34">Three guest kernels to boot, patch and scan</text>
+        <text class="t-xs" x="388" y="14">The container way</text>
+        <text class="t-s t-kept" x="388" y="34">One kernel, shared — nothing else to boot</text>
+
+        <!-- ══ LEFT: VMs ══ -->
+        <g>
+          <!-- VM boxes -->
+          <rect class="s-none" x="8"   y="48" width="108" height="166"></rect>
+          <rect class="s-none" x="126" y="48" width="108" height="166"></rect>
+          <rect class="s-none" x="244" y="48" width="108" height="166"></rect>
+          <!-- App -->
+          <rect class="s-box2" x="16"  y="58" width="92" height="28"></rect>
+          <rect class="s-box2" x="134" y="58" width="92" height="28"></rect>
+          <rect class="s-box2" x="252" y="58" width="92" height="28"></rect>
+          <text class="t-s" x="62"  y="76" text-anchor="middle">App</text>
+          <text class="t-s" x="180" y="76" text-anchor="middle">App</text>
+          <text class="t-s" x="298" y="76" text-anchor="middle">App</text>
+          <!-- Libs -->
+          <rect class="s-box" x="16"  y="90" width="92" height="22"></rect>
+          <rect class="s-box" x="134" y="90" width="92" height="22"></rect>
+          <rect class="s-box" x="252" y="90" width="92" height="22"></rect>
+          <text class="t-ms" x="62"  y="105" text-anchor="middle">libs</text>
+          <text class="t-ms" x="180" y="105" text-anchor="middle">libs</text>
+          <text class="t-ms" x="298" y="105" text-anchor="middle">libs</text>
+          <!-- Guest OS (the cost) -->
+          <rect class="s-drop" x="16"  y="116" width="92" height="92"></rect>
+          <rect class="s-drop" x="134" y="116" width="92" height="92"></rect>
+          <rect class="s-drop" x="252" y="116" width="92" height="92"></rect>
+          <text class="t-s t-b t-drop" x="62"  y="156" text-anchor="middle">Guest OS</text>
+          <text class="t-s t-b t-drop" x="180" y="156" text-anchor="middle">Guest OS</text>
+          <text class="t-s t-b t-drop" x="298" y="156" text-anchor="middle">Guest OS</text>
+          <text class="t-ms t-drop" x="62"  y="174" text-anchor="middle">+ kernel</text>
+          <text class="t-ms t-drop" x="180" y="174" text-anchor="middle">+ kernel</text>
+          <text class="t-ms t-drop" x="298" y="174" text-anchor="middle">+ kernel</text>
+          <!-- stack rows -->
+          <rect class="s-box" x="8" y="224" width="344" height="28"></rect>
+          <text class="t-s" x="180" y="242" text-anchor="middle">Hypervisor</text>
+          <rect class="s-box" x="8" y="256" width="344" height="28"></rect>
+          <text class="t-s" x="180" y="274" text-anchor="middle">Host OS</text>
+          <rect class="s-box2" x="8" y="288" width="344" height="28"></rect>
+          <text class="t-s" x="180" y="306" text-anchor="middle">Hardware</text>
+        </g>
+
+        <!-- divider -->
+        <line class="s-rule" x1="370" y1="8" x2="370" y2="322" stroke-dasharray="4 5"></line>
+
+        <!-- ══ RIGHT: containers ══ -->
+        <g>
+          <!-- the absence, drawn -->
+          <rect class="s-ghost" x="388" y="48" width="344" height="84" stroke="var(--drop)"></rect>
+          <text class="t-s t-b t-drop" x="560" y="82" text-anchor="middle">no guest OS · no second kernel · no boot</text>
+          <text class="t-ms t-drop" x="560" y="102" text-anchor="middle">this is the entire size and start-up difference</text>
+
+          <!-- container boxes -->
+          <rect class="s-none" x="388" y="140" width="108" height="74"></rect>
+          <rect class="s-none" x="506" y="140" width="108" height="74"></rect>
+          <rect class="s-none" x="624" y="140" width="108" height="74"></rect>
+          <rect class="s-box2" x="396" y="148" width="92" height="28"></rect>
+          <rect class="s-box2" x="514" y="148" width="92" height="28"></rect>
+          <rect class="s-box2" x="632" y="148" width="92" height="28"></rect>
+          <text class="t-s" x="442" y="166" text-anchor="middle">App</text>
+          <text class="t-s" x="560" y="166" text-anchor="middle">App</text>
+          <text class="t-s" x="678" y="166" text-anchor="middle">App</text>
+          <rect class="s-box" x="396" y="180" width="92" height="26"></rect>
+          <rect class="s-box" x="514" y="180" width="92" height="26"></rect>
+          <rect class="s-box" x="632" y="180" width="92" height="26"></rect>
+          <text class="t-ms" x="442" y="197" text-anchor="middle">libs</text>
+          <text class="t-ms" x="560" y="197" text-anchor="middle">libs</text>
+          <text class="t-ms" x="678" y="197" text-anchor="middle">libs</text>
+
+          <!-- syscall arrows -->
+          <line class="s-keptl" x1="442" y1="214" x2="442" y2="254" marker-end="url(#ar-kept)"></line>
+          <line class="s-keptl" x1="560" y1="214" x2="560" y2="254" marker-end="url(#ar-kept)"></line>
+          <line class="s-keptl" x1="678" y1="214" x2="678" y2="254" marker-end="url(#ar-kept)"></line>
+          <text class="t-ms t-kept" x="700" y="234" text-anchor="end">syscalls</text>
+
+          <rect class="s-box" x="388" y="224" width="344" height="28"></rect>
+          <text class="t-s" x="560" y="242" text-anchor="middle">Container runtime (containerd)</text>
+          <rect class="s-kept" x="388" y="256" width="344" height="28"></rect>
+          <text class="t-s t-b t-kept" x="560" y="274" text-anchor="middle">Host OS — one shared kernel</text>
+          <rect class="s-box2" x="388" y="288" width="344" height="28"></rect>
+          <text class="t-s" x="560" y="306" text-anchor="middle">Hardware</text>
+        </g>
+
+        <defs>
+          <marker id="ar-kept" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>Same hardware, same host OS. Removing the per-instance guest OS is what makes containers start in milliseconds and ship in megabytes — and it is also what makes their isolation boundary thinner than a VM's.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Cue ·</b> say the trade-off out loud: a shared kernel means a kernel-level escape is a shared risk. When you need a hard boundary — untrusted code, strict regulatory separation — a VM is still the right tool. Containers are a packaging and density win, not a security upgrade.</p>
+  </div>
+</section>
+
+<!-- ════════ 5 · NAMESPACES + CGROUPS ════════ -->
+<section class="slide" data-section="§1 · Mental model" data-title="What isolation is">
+  <div class="stage">
+    <p class="eyebrow">There is no container object in Linux</p>
+    <h2>"Container" is a name for two kernel features used together</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 320" role="img" aria-label="One container shown as a process with five namespaces giving it its own view of PIDs, network, mounts, hostname and users, plus cgroups constraining CPU and memory, all sitting on one shared kernel.">
+        <!-- container boundary -->
+        <rect class="s-ghost" x="8" y="12" width="470" height="234" stroke="var(--accent)"></rect>
+        <text class="t-xs t-acc" x="20" y="30">one container</text>
+
+        <!-- the process -->
+        <rect class="s-acc" x="26" y="42" width="240" height="38"></rect>
+        <text class="t-m t-b" x="38" y="66">PID 1 · dotnet WeatherApi.dll</text>
+        <text class="t-ms" x="286" y="60">an ordinary Linux process —</text>
+        <text class="t-ms" x="286" y="74">visible in <tspan class="t-ms" font-weight="600">ps</tspan> on the host</text>
+
+        <!-- namespaces label -->
+        <text class="t-xs" x="26" y="106">namespaces — what the process can see</text>
+        <line class="s-rule" x1="26" y1="112" x2="460" y2="112"></line>
+
+        <g>
+          <text class="t-m t-b t-acc" x="26" y="132">pid</text>
+          <text class="t-s" x="96" y="132">its own PID 1; cannot see host processes</text>
+          <text class="t-m t-b t-acc" x="26" y="154">net</text>
+          <text class="t-s" x="96" y="154">its own loopback and its own port 8080</text>
+          <text class="t-m t-b t-acc" x="26" y="176">mnt</text>
+          <text class="t-s" x="96" y="176">its own filesystem view — the image</text>
+          <text class="t-m t-b t-acc" x="26" y="198">uts</text>
+          <text class="t-s" x="96" y="198">its own hostname</text>
+          <text class="t-m t-b t-acc" x="26" y="220">user</text>
+          <text class="t-s" x="96" y="220">its own user and group ID mapping</text>
+        </g>
+
+        <!-- cgroups panel -->
+        <rect class="s-box" x="500" y="12" width="232" height="234"></rect>
+        <text class="t-xs" x="516" y="30">cgroups — what it may consume</text>
+        <line class="s-rule" x1="516" y1="38" x2="716" y2="38"></line>
+
+        <text class="t-ms" x="516" y="62">CPU</text>
+        <text class="t-ms t-num" x="716" y="62" text-anchor="end">0.5 of 8 cores</text>
+        <rect class="s-box2" x="516" y="70" width="200" height="12"></rect>
+        <rect x="516" y="70" width="13" height="12" fill="var(--accent)"></rect>
+
+        <text class="t-ms" x="516" y="106">Memory</text>
+        <text class="t-ms t-num" x="716" y="106" text-anchor="end">512 MB of 32 GB</text>
+        <rect class="s-box2" x="516" y="114" width="200" height="12"></rect>
+        <rect x="516" y="114" width="4" height="12" fill="var(--accent)"></rect>
+
+        <text class="t-ms" x="516" y="150">PIDs, block I/O, devices…</text>
+        <rect class="s-box2" x="516" y="158" width="200" height="12"></rect>
+
+        <text class="t-s" x="516" y="196">Exceed the memory limit and</text>
+        <text class="t-s" x="516" y="212">the kernel kills the process.</text>
+        <text class="t-ms t-drop" x="516" y="232">exit code 137 — OOM</text>
+
+        <!-- kernel band -->
+        <line class="s-line" x1="243" y1="246" x2="243" y2="272" marker-end="url(#ar2)"></line>
+        <rect class="s-kept" x="8" y="278" width="724" height="34"></rect>
+        <text class="t-s t-b t-kept" x="370" y="300" text-anchor="middle">One shared Linux kernel — it enforces every boundary above</text>
+
+        <defs>
+          <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>Namespaces limit what a process can see; cgroups limit what it can consume. Take both away and you are left with a plain process — which is exactly what it was all along.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 6 · IMAGE vs CONTAINER ════════ -->
+<section class="slide" data-section="§1 · Mental model" data-title="Image vs container">
+  <div class="stage">
+    <p class="eyebrow">The distinction that explains most operational confusion</p>
+    <h2>An image is inert data. A container is a running process.</h2>
+    <div class="cols cols--side-r">
+      <div class="svgwrap">
+      <figure>
+        <svg viewBox="0 0 620 300" role="img" aria-label="One read-only image consisting of stacked layers plus a config blob, with docker run creating three containers, each reusing the same read-only layers and adding its own thin writable layer, its own process and its own runtime configuration.">
+          <!-- IMAGE -->
+          <text class="t-xs" x="8" y="16">image · read-only · shared</text>
+          <rect class="s-kept" x="8" y="26" width="176" height="22"></rect>
+          <text class="t-ms" x="18" y="41">config (env, entrypoint)</text>
+          <rect class="s-box" x="8" y="52" width="176" height="26"></rect>
+          <text class="t-ms" x="18" y="69">layer · app files</text>
+          <rect class="s-box" x="8" y="82" width="176" height="26"></rect>
+          <text class="t-ms" x="18" y="99">layer · runtime</text>
+          <rect class="s-box" x="8" y="112" width="176" height="26"></rect>
+          <text class="t-ms" x="18" y="129">layer · libs</text>
+          <rect class="s-box2" x="8" y="142" width="176" height="26"></rect>
+          <text class="t-ms" x="18" y="159">layer · base OS files</text>
+          <text class="t-ms t-kept" x="8" y="186">sha256:9f2c… </text>
+          <text class="t-ms" x="8" y="202">pulled once, stored once</text>
+
+          <!-- arrow -->
+          <line class="s-accl" x1="196" y1="100" x2="268" y2="100" marker-end="url(#ar3)"></line>
+          <text class="t-ms t-acc" x="232" y="90" text-anchor="middle">docker run</text>
+          <text class="t-ms t-acc" x="232" y="118" text-anchor="middle">× 3</text>
+
+          <!-- CONTAINERS -->
+          <text class="t-xs" x="284" y="16">containers · one process each</text>
+          <g>
+            <!-- c1 -->
+            <rect class="s-acc" x="284" y="26" width="100" height="24"></rect>
+            <text class="t-ms" x="292" y="42">writable layer</text>
+            <rect class="s-ghost" x="284" y="54" width="100" height="72"></rect>
+            <text class="t-ms" x="334" y="86" text-anchor="middle">same</text>
+            <text class="t-ms" x="334" y="100" text-anchor="middle">read-only</text>
+            <text class="t-ms" x="334" y="114" text-anchor="middle">layers</text>
+            <rect class="s-box2" x="284" y="132" width="100" height="34"></rect>
+            <text class="t-ms" x="334" y="146" text-anchor="middle">PID 1</text>
+            <text class="t-ms" x="334" y="160" text-anchor="middle">:8080 → 8080</text>
+            <!-- c2 -->
+            <rect class="s-acc" x="396" y="26" width="100" height="24"></rect>
+            <text class="t-ms" x="404" y="42">writable layer</text>
+            <rect class="s-ghost" x="396" y="54" width="100" height="72"></rect>
+            <text class="t-ms" x="446" y="86" text-anchor="middle">same</text>
+            <text class="t-ms" x="446" y="100" text-anchor="middle">read-only</text>
+            <text class="t-ms" x="446" y="114" text-anchor="middle">layers</text>
+            <rect class="s-box2" x="396" y="132" width="100" height="34"></rect>
+            <text class="t-ms" x="446" y="146" text-anchor="middle">PID 1</text>
+            <text class="t-ms" x="446" y="160" text-anchor="middle">:8081 → 8080</text>
+            <!-- c3 -->
+            <rect class="s-acc" x="508" y="26" width="100" height="24"></rect>
+            <text class="t-ms" x="516" y="42">writable layer</text>
+            <rect class="s-ghost" x="508" y="54" width="100" height="72"></rect>
+            <text class="t-ms" x="558" y="86" text-anchor="middle">same</text>
+            <text class="t-ms" x="558" y="100" text-anchor="middle">read-only</text>
+            <text class="t-ms" x="558" y="114" text-anchor="middle">layers</text>
+            <rect class="s-box2" x="508" y="132" width="100" height="34"></rect>
+            <text class="t-ms" x="558" y="146" text-anchor="middle">PID 1</text>
+            <text class="t-ms" x="558" y="160" text-anchor="middle">:8082 → 8080</text>
+          </g>
+          <line class="s-rule" x1="284" y1="182" x2="608" y2="182"></line>
+          <text class="t-ms" x="284" y="200">different ports · different env vars · different lifetimes</text>
+          <text class="t-ms t-drop" x="284" y="222">delete a container and its writable layer goes with it</text>
+
+          <!-- bottom rule of consequence -->
+          <line class="s-rule" x1="8" y1="248" x2="608" y2="248"></line>
+          <text class="t-s t-b" x="8" y="270">Changed the Dockerfile?</text>
+          <text class="t-s" x="152" y="270">rebuild the image — restarting the container changes nothing.</text>
+          <text class="t-s t-b" x="8" y="290">Changed an env var?</text>
+          <text class="t-s" x="132" y="290">recreate the container — no rebuild needed.</text>
+
+          <defs>
+            <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M0,1 L9,5 L0,9 z" fill="var(--accent)"></path>
+            </marker>
+          </defs>
+        </svg>
+        <figcaption>The read-only layers are shared between all three containers on disk — three containers from one image cost roughly one image, not three.</figcaption>
+      </figure>
+      </div>
+      <div class="cols" style="gap:0.7rem">
+        <div class="card card--kept">
+          <span class="card__k">Image</span>
+          <p><strong>A noun.</strong> Layers plus a config blob, addressed by digest. Immutable. Pull it, sign it, scan it, ship it.</p>
+        </div>
+        <div class="card card--acc">
+          <span class="card__k">Container</span>
+          <p><strong>A verb.</strong> That image, plus a writable layer, plus runtime configuration, plus a process the kernel is actually running.</p>
+        </div>
+        <div class="card">
+          <span class="card__k">Why it matters</span>
+          <p>"It works on my machine" usually means the <strong>image</strong> is fine and the <strong>runtime configuration</strong> differs. Knowing which half to look at saves the afternoon.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 7 · DEMO 1 ════════ -->
+<section class="slide slide--demo" data-section="§1 · Mental model" data-title="DEMO · Run it without Docker">
+  <div class="stage">
+    <span class="demo-badge">Demo 1</span>
+    <h2>First, prove the app works with no Docker at all</h2>
+    <p class="lead">Containerisation should never hide application basics. If we cannot run it here, containerising it only adds a second thing to debug.</p>
+    <div class="term"><span class="p">PS&gt;</span> dotnet run --project .\src\WeatherApi.csproj --urls http://localhost:5088
+
+<span class="p">PS&gt;</span> Invoke-RestMethod http://localhost:5088/health
+<span class="c">status : healthy</span>
+
+<span class="p">PS&gt;</span> Invoke-RestMethod http://localhost:5088/info
+<span class="c">app         : Weather API
+version     : dev            </span><span class="g">← no APP_VERSION set, so it falls back</span><span class="c">
+environment : Development</span></div>
+    <p class="note"><b>Cue ·</b> three endpoints — <b>/health</b>, <b>/info</b>, <b>/weatherforecast</b>. Note <b>version: dev</b> now; we will watch that value get stamped at build time and then overridden at run time. It is the thread that ties sections 5 and 6 together.</p>
+  </div>
+</section>
+
+<!-- ════════ 8 · §2 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§2 · How a build happens" data-title="§2 How a build happens">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">2</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section two</p>
+        <h2>Who actually does the work<br>when you type docker build</h2>
+        <p class="lead">Not your shell. That single fact explains the build context, the layer cache, and the failure we are going to walk into deliberately in section 3a.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 9 · CLIENT / DAEMON / REGISTRY ════════ -->
+<section class="slide" data-section="§2 · How a build happens" data-title="Client, daemon, registry">
+  <div class="stage">
+    <p class="eyebrow">Three moving parts, one of which is not on your machine</p>
+    <h2>The CLI asks. The daemon builds. The registry stores.</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 290" role="img" aria-label="The docker CLI sends the build context and instructions over a socket to the Docker daemon and BuildKit, which pulls base images from a registry, runs each build step in a throwaway container, and pushes the tagged result back to the registry.">
+        <!-- CLI -->
+        <rect class="s-box" x="8" y="60" width="164" height="96"></rect>
+        <text class="t-xs" x="20" y="80">your machine</text>
+        <text class="t-m t-b" x="20" y="104">docker CLI</text>
+        <text class="t-ms" x="20" y="124">a thin client.</text>
+        <text class="t-ms" x="20" y="138">It builds nothing.</text>
+
+        <!-- DAEMON -->
+        <rect class="s-acc" x="252" y="34" width="236" height="148"></rect>
+        <text class="t-xs t-acc" x="264" y="54">docker daemon + buildkit</text>
+        <text class="t-m t-b" x="264" y="78">Does all the work</text>
+        <rect class="s-box" x="264" y="90" width="212" height="34"></rect>
+        <text class="t-ms" x="274" y="111">runs each RUN in a throwaway container</text>
+        <rect class="s-box" x="264" y="130" width="212" height="40"></rect>
+        <text class="t-ms" x="274" y="148">holds the layer cache</text>
+        <text class="t-ms" x="274" y="163">and the local image store</text>
+
+        <!-- REGISTRY -->
+        <rect class="s-box" x="568" y="60" width="164" height="96"></rect>
+        <text class="t-xs" x="580" y="80">somewhere else</text>
+        <text class="t-m t-b" x="580" y="104">Registry</text>
+        <text class="t-ms" x="580" y="124">mcr.microsoft.com</text>
+        <text class="t-ms" x="580" y="138">ACR · Docker Hub</text>
+
+        <!-- arrows -->
+        <line class="s-accl" x1="172" y1="94" x2="248" y2="94" marker-end="url(#ar4)"></line>
+        <text class="t-ms t-acc" x="210" y="86" text-anchor="middle">context</text>
+        <text class="t-ms t-acc" x="210" y="112" text-anchor="middle">+ Dockerfile</text>
+
+        <line class="s-line" x1="492" y1="82" x2="564" y2="82" marker-end="url(#ar4b)"></line>
+        <text class="t-ms" x="528" y="74" text-anchor="middle">pull base</text>
+        <line class="s-line" x1="564" y1="130" x2="492" y2="130" marker-end="url(#ar4b)" stroke-dasharray="4 4"></line>
+        <text class="t-ms" x="528" y="148" text-anchor="middle">push tag</text>
+
+        <!-- the punchline -->
+        <rect class="s-drop" x="8" y="204" width="724" height="76"></rect>
+        <text class="t-s t-b t-drop" x="24" y="228">Consequence — and remember it for section 3a:</text>
+        <text class="t-s" x="24" y="250">the daemon cannot see your files, your environment variables, your VPN, or your certificate trust store.</text>
+        <text class="t-s" x="24" y="270">Anything a build step needs must be handed to it deliberately. Nothing is inherited from your shell.</text>
+
+        <defs>
+          <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--accent)"></path>
+          </marker>
+          <marker id="ar4b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>The daemon is a separate process with its own filesystem view — on Windows and macOS it is a separate Linux VM entirely. "Handed to it deliberately" is the theme of the next two sections.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 10 · BUILD CONTEXT ════════ -->
+<section class="slide" data-section="§2 · How a build happens" data-title="The build context">
+  <div class="stage">
+    <p class="eyebrow">That trailing dot is a parameter, not punctuation</p>
+    <h2>The build context is what you send, minus what you exclude</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 300" role="img" aria-label="The folder on disk passes through the dockerignore filter; build output, git metadata, certificates and env files are excluded, leaving only source files and the Dockerfile to reach the builder. Measured result: three megabytes of source folder becomes a twenty kilobyte layer.">
+        <text class="t-xs" x="8" y="16">on disk · what the dot points at</text>
+        <text class="t-xs t-acc" x="300" y="16">.dockerignore</text>
+        <text class="t-xs t-kept" x="472" y="16">what the builder receives</text>
+
+        <!-- left list -->
+        <g>
+          <rect class="s-box" x="8" y="26" width="240" height="212"></rect>
+          <text class="t-m" x="22" y="48">src/Program.cs</text>
+          <text class="t-m" x="22" y="70">src/WeatherApi.csproj</text>
+          <text class="t-m t-drop" x="22" y="92">src/bin/       <tspan class="t-ms t-drop">3.0 MB</tspan></text>
+          <text class="t-m t-drop" x="22" y="114">src/obj/       <tspan class="t-ms t-drop">build output</tspan></text>
+          <text class="t-m" x="22" y="136">Dockerfile</text>
+          <text class="t-m t-drop" x="22" y="158">.git/          <tspan class="t-ms t-drop">whole history</tspan></text>
+          <text class="t-m t-drop" x="22" y="180">certs/         <tspan class="t-ms t-drop">a real CA key</tspan></text>
+          <text class="t-m t-drop" x="22" y="202">.env           <tspan class="t-ms t-drop">local secrets</tspan></text>
+          <text class="t-m t-drop" x="22" y="224">*.log</text>
+        </g>
+
+        <!-- the filter -->
+        <rect class="s-acc" x="288" y="26" width="18" height="212"></rect>
+        <g>
+          <!-- pass-through slots at kept rows -->
+          <rect x="288" y="40" width="18" height="12" fill="var(--kept)"></rect>
+          <rect x="288" y="62" width="18" height="12" fill="var(--kept)"></rect>
+          <rect x="288" y="128" width="18" height="12" fill="var(--kept)"></rect>
+        </g>
+        <!-- kept arrows -->
+        <line class="s-keptl" x1="248" y1="45"  x2="286" y2="45"></line>
+        <line class="s-keptl" x1="306" y1="45"  x2="468" y2="45" marker-end="url(#ar5k)"></line>
+        <line class="s-keptl" x1="248" y1="67"  x2="286" y2="67"></line>
+        <line class="s-keptl" x1="306" y1="67"  x2="468" y2="67" marker-end="url(#ar5k)"></line>
+        <line class="s-keptl" x1="248" y1="133" x2="286" y2="133"></line>
+        <line class="s-keptl" x1="306" y1="133" x2="468" y2="133" marker-end="url(#ar5k)"></line>
+        <!-- dropped arrows deflect down -->
+        <path class="s-dropl" d="M248 88 L282 88 L282 262" stroke-dasharray="4 4" marker-end="url(#ar5d)"></path>
+        <path class="s-dropl" d="M248 110 L278 110 L278 262" stroke-dasharray="4 4"></path>
+        <path class="s-dropl" d="M248 154 L274 154 L274 262" stroke-dasharray="4 4"></path>
+        <path class="s-dropl" d="M248 176 L270 176 L270 262" stroke-dasharray="4 4"></path>
+        <path class="s-dropl" d="M248 198 L266 198 L266 262" stroke-dasharray="4 4"></path>
+        <text class="t-ms t-drop" x="200" y="282">never leaves your machine</text>
+
+        <!-- right list -->
+        <rect class="s-kept" x="472" y="26" width="260" height="122"></rect>
+        <text class="t-m" x="486" y="48">src/Program.cs</text>
+        <text class="t-m" x="486" y="70">src/WeatherApi.csproj</text>
+        <text class="t-m" x="486" y="92">Dockerfile</text>
+        <text class="t-ms t-kept" x="486" y="122">COPY src/. ./src/  →  20.5 kB layer</text>
+        <text class="t-ms" x="486" y="138">measured on this repo, today</text>
+
+        <rect class="s-box2" x="472" y="160" width="260" height="78"></rect>
+        <text class="t-s t-b" x="486" y="182">3.0 MB folder → 20.5 kB layer</text>
+        <text class="t-ms" x="486" y="204">because <tspan font-weight="600">**/bin/</tspan> and <tspan font-weight="600">**/obj/</tspan></text>
+        <text class="t-ms" x="486" y="220">are in .dockerignore. Delete that</text>
+        <text class="t-ms" x="486" y="236">file and stale DLLs ship instead.</text>
+
+        <defs>
+          <marker id="ar5k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path>
+          </marker>
+          <marker id="ar5d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--drop)"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>`.dockerignore` is not housekeeping. It decides what a build step is even capable of copying — which makes it a security control as much as a performance one.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Cue ·</b> ask the room: if <b>.dockerignore</b> vanished from your current project, what would end up inside the build context? Most people find a <b>.env</b>, a private key, or a 400 MB <b>node_modules</b> they had forgotten about.</p>
+  </div>
+</section>
+<!-- ════════ 11 · §3 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§3 · Your first Dockerfile" data-title="§3 Your first Dockerfile">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">3</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section three</p>
+        <h2>A readable, useful,<br>deliberately imperfect Dockerfile</h2>
+        <p class="lead">We will build the naive version first, on purpose. It works, the mechanics are all visible, and every flaw in it becomes a lesson later in the talk.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 12 · THE FIRST DOCKERFILE ════════ -->
+<section class="slide" data-section="§3 · Your first Dockerfile" data-title="The single-stage Dockerfile">
+  <div class="stage">
+    <p class="eyebrow">Seven instructions · <span class="mono">Dockerfile</span></p>
+    <h2>Choose a base, add your code, say how to start it</h2>
+    <div class="cols cols--2">
+      <div class="code"><span class="c"># syntax=docker/dockerfile:1</span>
+<b><span class="k">FROM</span> mcr.microsoft.com/dotnet/sdk:8.0</b>
+
+<b><span class="k">WORKDIR</span></b> /workspace
+
+<span class="c"># convenient, but not cache-friendly —</span>
+<span class="c"># any source edit invalidates the restore below</span>
+<b><span class="k">COPY</span></b> src/. ./src/
+
+<b><span class="k">RUN</span></b> --mount=type=secret,id=netskope_cert &lt;&lt;'EOF'
+  <span class="c">…trust the corporate CA for this step only…</span>
+  dotnet restore "src/WeatherApi.csproj"
+  <span class="c">…then remove it again…</span>
+EOF
+
+<b><span class="k">RUN</span></b> dotnet publish "src/WeatherApi.csproj" \
+      -c Release -o /app/publish --no-restore
+
+<b><span class="k">ENV</span></b> ASPNETCORE_URLS=http://+:8080
+<b><span class="k">EXPOSE</span></b> 8080
+<b><span class="k">ENTRYPOINT</span></b> ["dotnet", "/app/publish/WeatherApi.dll"]</div>
+      <div class="cols" style="gap:0.55rem">
+        <ul class="list">
+          <li><span class="list__m">FROM</span><span>The starting filesystem. Everything it contains, you inherit — <strong>including its certificate trust store</strong>.</span></li>
+          <li><span class="list__m">WORKDIR</span><span>Sets the directory for later instructions. Mostly metadata.</span></li>
+          <li><span class="list__m">COPY</span><span>Moves files <strong>from the build context</strong> into the image. Cannot reach outside it.</span></li>
+          <li><span class="list__m">RUN</span><span>Executes a command <strong>inside a throwaway container</strong> and keeps the resulting filesystem changes.</span></li>
+          <li><span class="list__m">ENV</span><span>Writes a variable into the image config. The process sees it at run time.</span></li>
+          <li><span class="list__m">EXPOSE</span><span>Documentation for humans and tooling. <strong>Opens nothing.</strong></span></li>
+          <li><span class="list__m">ENTRYPOINT</span><span>The process the container exists to run.</span></li>
+        </ul>
+        <div class="card card--drop">
+          <span class="card__k">Be honest about this one</span>
+          <p>It works, and we would not ship it. The SDK, the compiler, the NuGet cache and the source tree all end up in the final image — <strong>1.27 GB</strong> of it. Section 6 fixes that.</p>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> the <b>--mount=type=secret</b> on the RUN line is the next section. Do not explain it yet — build without it first and let the room watch it fail. If someone asks, that is even better: park it and say you will earn the answer in two slides.</p>
+  </div>
+</section>
+
+<!-- ════════ 13 · §3a DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§3a · The build's own trust store" data-title="§3a The build's own trust store">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">3a</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section three, continued</p>
+        <h2>The same command. Your terminal:<br>fine. Inside RUN: broken.</h2>
+        <p class="lead">Behind a TLS-intercepting proxy, this build fails. <strong>Why it fails is the whole of section 2 restated</strong> — and it is the fastest way to see where a build step actually runs.</p>
+        <p class="note"><b>Cue ·</b> set this up as a puzzle and reveal nothing yet. State that <b>dotnet restore</b> works in your terminal and fails inside the builder, ask the room why, and let them sit with it. This is the most useful five minutes in the talk — do not rush it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 14 · THE PUZZLE ════════ -->
+<section class="slide" data-section="§3a · The build's own trust store" data-title="Two trust stores">
+  <div class="stage">
+    <p class="eyebrow">Identical command · identical project · opposite outcomes</p>
+    <h2>RUN is not your shell. It has its own trust store.</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 316" role="img" aria-label="The same dotnet restore command shown twice. On your host the certificate trust store contains the corporate Netskope CA installed by IT, so restore succeeds. Inside a RUN step the trust store came from the base image and contains only public Mozilla roots, so restore fails with NU1301.">
+        <!-- the shared command -->
+        <rect class="s-box2" x="8" y="8" width="724" height="40"></rect>
+        <text class="t-m t-b" x="370" y="34" text-anchor="middle">dotnet restore src/WeatherApi.csproj</text>
+        <text class="t-xs" x="20" y="26">same command →</text>
+        <text class="t-xs" x="720" y="26" text-anchor="end">← same project</text>
+
+        <!-- columns -->
+        <text class="t-xs" x="8" y="70">in your terminal</text>
+        <text class="t-xs" x="380" y="70">inside RUN, in the builder</text>
+
+        <!-- LEFT trust store -->
+        <rect class="s-box" x="8" y="80" width="352" height="128"></rect>
+        <text class="t-ms" x="22" y="102">certificate trust store</text>
+        <line class="s-rule" x1="22" y1="110" x2="346" y2="110"></line>
+        <text class="t-ms" x="22" y="130">DigiCert · ISRG · Baltimore · …</text>
+        <rect class="s-kept" x="22" y="140" width="324" height="26"></rect>
+        <text class="t-ms t-kept t-b" x="32" y="158">caadmin.netskope.com — present</text>
+        <text class="t-ms" x="22" y="184">installed by IT when they set up</text>
+        <text class="t-ms" x="22" y="198">your laptop. You never think about it.</text>
+
+        <!-- LEFT result -->
+        <rect class="s-kept" x="8" y="222" width="352" height="52"></rect>
+        <text class="t-m t-b t-kept" x="22" y="244">Restore succeeds</text>
+        <text class="t-ms" x="22" y="264">…which is why nobody expects the next bit</text>
+
+        <!-- divider -->
+        <line class="s-rule" x1="370" y1="60" x2="370" y2="300" stroke-dasharray="4 5"></line>
+
+        <!-- RIGHT trust store -->
+        <rect class="s-box" x="380" y="80" width="352" height="128"></rect>
+        <text class="t-ms" x="394" y="102">certificate trust store</text>
+        <line class="s-rule" x1="394" y1="110" x2="718" y2="110"></line>
+        <text class="t-ms" x="394" y="130">DigiCert · ISRG · Baltimore · …</text>
+        <rect class="s-drop" x="394" y="140" width="324" height="26"></rect>
+        <text class="t-ms t-drop t-b" x="404" y="158">caadmin.netskope.com — absent</text>
+        <text class="t-ms t-drop" x="394" y="184">this list arrived with</text>
+        <text class="t-ms t-drop" x="394" y="198">mcr.microsoft.com/dotnet/sdk:8.0</text>
+
+        <!-- RIGHT result -->
+        <rect class="s-drop" x="380" y="222" width="352" height="52"></rect>
+        <text class="t-m t-b t-drop" x="394" y="244">error NU1301</text>
+        <text class="t-ms" x="394" y="264">Unable to load the service index for source…</text>
+
+        <!-- the lesson -->
+        <text class="t-s t-b" x="8" y="304">Microsoft has never heard of your employer, and had no reason to trust them.</text>
+
+        <defs>
+          <marker id="ar6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>The environment differs, not the command. Whatever the base image trusts is what your build trusts — and that is true of its packages, its shell, its users and its CA bundle alike.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 15 · TLS INTERCEPTION ════════ -->
+<section class="slide" data-section="§3a · The build's own trust store" data-title="What the proxy does">
+  <div class="stage">
+    <p class="eyebrow">And NU1301 is a misleading error message</p>
+    <h2>It reached nuget.org. It <em>refused the certificate.</em></h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 280" role="img" aria-label="Two separate TLS sessions. The container connects to the Netskope proxy, which presents a certificate for nuget.org signed by caadmin.netskope.com. The proxy separately connects to the real nuget.org over a properly signed session. The container cannot verify the proxy's signer and aborts.">
+        <!-- boxes -->
+        <rect class="s-box" x="8" y="72" width="176" height="72"></rect>
+        <text class="t-xs" x="20" y="92">inside RUN</text>
+        <text class="t-m t-b" x="20" y="116">container</text>
+        <text class="t-ms" x="20" y="134">public roots only</text>
+
+        <rect class="s-acc" x="282" y="72" width="176" height="72"></rect>
+        <text class="t-xs t-acc" x="294" y="92">your corporate network</text>
+        <text class="t-m t-b" x="294" y="116">Netskope</text>
+        <text class="t-ms" x="294" y="134">terminates · inspects · re-signs</text>
+
+        <rect class="s-box" x="556" y="72" width="176" height="72"></rect>
+        <text class="t-xs" x="568" y="92">the internet</text>
+        <text class="t-m t-b" x="568" y="116">nuget.org</text>
+        <text class="t-ms" x="568" y="134">the real thing</text>
+
+        <!-- session 1 -->
+        <line class="s-dropl" x1="184" y1="108" x2="278" y2="108" marker-end="url(#ar7d)"></line>
+        <text class="t-ms t-drop" x="231" y="60" text-anchor="middle">TLS session 1</text>
+        <text class="t-ms t-drop" x="231" y="46" text-anchor="middle">cert claims "nuget.org"</text>
+        <text class="t-ms t-drop" x="231" y="32" text-anchor="middle">signed by caadmin.netskope.com</text>
+
+        <!-- session 2 -->
+        <line class="s-keptl" x1="458" y1="108" x2="552" y2="108" marker-end="url(#ar7k)"></line>
+        <text class="t-ms t-kept" x="505" y="60" text-anchor="middle">TLS session 2</text>
+        <text class="t-ms t-kept" x="505" y="46" text-anchor="middle">real cert, public CA</text>
+        <text class="t-ms t-kept" x="505" y="32" text-anchor="middle">verifies fine</text>
+
+        <!-- the verify step -->
+        <rect class="s-drop" x="8" y="176" width="450" height="84"></rect>
+        <text class="t-xs t-drop" x="22" y="196">the container's verification, step by step</text>
+        <text class="t-ms" x="22" y="216">1 · certificate claims to be nuget.org — plausible</text>
+        <text class="t-ms" x="22" y="234">2 · who signed it? caadmin.netskope.com</text>
+        <text class="t-ms t-drop t-b" x="22" y="252">3 · is that in my trust store? No → abort the connection</text>
+
+        <!-- the point -->
+        <rect class="s-box2" x="478" y="176" width="254" height="84"></rect>
+        <text class="t-s t-b" x="492" y="200">The container is right.</text>
+        <text class="t-ms" x="492" y="222">From where it is standing, a stranger</text>
+        <text class="t-ms" x="492" y="238">is impersonating nuget.org. Refusing</text>
+        <text class="t-ms" x="492" y="254">that is TLS working, not a bug.</text>
+
+        <defs>
+          <marker id="ar7d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--drop)"></path>
+          </marker>
+          <marker id="ar7k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>`NU1301` reads like "no network", which sends people down the wrong debugging path for an hour. `curl` in the same base image is what separates "could not connect" from "would not trust".</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 16 · DEMO 2 — FOUR BEATS ════════ -->
+<section class="slide slide--demo" data-section="§3a · The build's own trust store" data-title="DEMO · The deliberate failure">
+  <div class="stage">
+    <span class="demo-badge">Demo 2 · five beats</span>
+    <h2>Break it, diagnose it, prove the cause, fix it, prove the fix is clean</h2>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat__n">1</div>
+        <div>
+          <p class="beat__t">Build with no certificate. It fails.</p>
+          <div class="term"><span class="p">PS&gt;</span> docker build <span class="g">--no-cache</span> -t weatherapi:nocert -f .\Dockerfile .
+<span class="b">error NU1301: Unable to load the service index for source https://api.nuget.org/v3/index.json</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">2</div>
+        <div>
+          <p class="beat__t">Narrow it down inside the <em>same base image</em>. Is it the network, or the certificate?</p>
+          <div class="term"><span class="p">PS&gt;</span> docker run --rm mcr.microsoft.com/dotnet/sdk:8.0 curl -sS https://api.nuget.org/v3/index.json
+<span class="b">curl: (60) SSL certificate problem: self-signed certificate in certificate chain</span>
+<span class="c">                    ↑ it connected. It refused the certificate. Different problem.</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">3</div>
+        <div>
+          <p class="beat__t">Same container, same command — now with the CA mounted in. <em>This is the controlled experiment: one variable changed.</em></p>
+          <div class="term"><span class="p">PS&gt;</span> docker run --rm <span class="g">-v "${PWD}\certs\netskope.crt:/usr/local/share/ca-certificates/netskope.crt:ro"</span> `
+       mcr.microsoft.com/dotnet/sdk:8.0 sh -c "<span class="g">update-ca-certificates</span> &amp;&amp; curl -sS https://api.nuget.org/v3/index.json"
+
+<span class="c">Updating certificates in /etc/ssl/certs...</span>
+<span class="g">1 added, 0 removed; done.</span>
+<span class="c">Running hooks in /etc/ca-certificates/update.d...
+done.</span>
+<span class="g">{ "version": "3.0.0", "resources": [ { "@id": "https://azuresearch-usnc.nuget.org/query", …</span>
+<span class="c">   ↑ nuget.org answers. Nothing changed but the trust store.</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">4</div>
+        <div>
+          <p class="beat__t">Now do the same thing in the build — deliberately, for one step only.</p>
+          <div class="term"><span class="p">PS&gt;</span> docker build <span class="g">--secret id=netskope_cert,src=.\certs\netskope.crt</span> -t weatherapi:single -f .\Dockerfile .
+<span class="g">=&gt; [5/6] RUN --mount=type=secret,id=netskope_cert                    DONE</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">5</div>
+        <div>
+          <p class="beat__t">Prove the certificate did not contaminate the image.</p>
+          <div class="term"><span class="p">PS&gt;</span> docker run --rm --entrypoint sh weatherapi:single -c "ls -A /usr/local/share/ca-certificates/ | grep -i netskope; ls -A /run/secrets"
+<span class="g">no netskope.crt in image
+no /run/secrets in image</span>   <span class="c">← verified on this machine today</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Cues ·</b> <b>Beat 1:</b> ask the room why before you say anything. <b>Beat 3:</b> this is the beat that settles it — the certificate was the only missing piece, and you proved it without touching the Dockerfile. <b>Beat 5:</b> "trust me, it's clean" is not an engineering standard, so show it. The <b>rehash: warning</b> line in beat 3 is harmless noise from <b>update-ca-certificates</b> reading the existing bundle — mention it only if someone asks.<br><b>--no-cache in beat 1 is mandatory.</b> A secret mount's <b>contents</b> are not part of the layer cache key — only the declaration is. With a warm cache the build succeeds without the cert and spoils the whole demo. <b>Off the corporate network?</b> Beats 1–3 all simply pass; narrate the expected output rather than faking a failure.</p>
+  </div>
+</section>
+
+<!-- ════════ 17 · THREE FIXES ════════ -->
+<section class="slide" data-section="§3a · The build's own trust store" data-title="Three fixes, two wrong">
+  <div class="stage">
+    <p class="eyebrow">Where does the certificate end up?</p>
+    <h2>Three ways to fix it. Two of them ship your CA to strangers.</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 300" role="img" aria-label="Three approaches compared. Disabling certificate validation leaves the build trusting anything. Copying the certificate into the image bakes it into a shipped layer. Mounting it as a build secret keeps it outside every layer, present only for the duration of one RUN step.">
+        <!-- ── option 1 ── -->
+        <text class="t-xs t-drop" x="8" y="16">option 1 · turn validation off</text>
+        <rect class="s-drop" x="8" y="26" width="228" height="30"></rect>
+        <text class="t-ms" x="18" y="46">…CERT_REVOCATION_MODE=offline</text>
+        <!-- stack -->
+        <rect class="s-box" x="8" y="72" width="228" height="22"></rect>
+        <text class="t-ms" x="18" y="87">app layer</text>
+        <rect class="s-box" x="8" y="98" width="228" height="22"></rect>
+        <text class="t-ms" x="18" y="113">restore layer</text>
+        <rect class="s-box2" x="8" y="124" width="228" height="22"></rect>
+        <text class="t-ms" x="18" y="139">base image</text>
+        <rect class="s-drop" x="8" y="164" width="228" height="94"></rect>
+        <text class="t-s t-b t-drop" x="18" y="186">Trades a build problem</text>
+        <text class="t-s t-b t-drop" x="18" y="204">for a security hole.</text>
+        <text class="t-ms" x="18" y="228">The build now accepts any</text>
+        <text class="t-ms" x="18" y="244">certificate from anyone, forever.</text>
+        <text class="t-m t-b t-drop" x="18" y="282">✗  no</text>
+
+        <!-- ── option 2 ── -->
+        <text class="t-xs t-drop" x="256" y="16">option 2 · copy it in</text>
+        <rect class="s-drop" x="256" y="26" width="228" height="30"></rect>
+        <text class="t-ms" x="266" y="46">COPY certs/netskope.crt /usr/…</text>
+        <rect class="s-box" x="256" y="72" width="228" height="22"></rect>
+        <text class="t-ms" x="266" y="87">app layer</text>
+        <rect class="s-drop" x="256" y="98" width="228" height="22"></rect>
+        <text class="t-ms t-drop t-b" x="266" y="113">layer containing your CA</text>
+        <rect class="s-box2" x="256" y="124" width="228" height="22"></rect>
+        <text class="t-ms" x="266" y="139">base image</text>
+        <rect class="s-drop" x="256" y="164" width="228" height="94"></rect>
+        <text class="t-s t-b t-drop" x="266" y="186">It works — and ships.</text>
+        <text class="t-ms" x="266" y="210">Visible in docker history,</text>
+        <text class="t-ms" x="266" y="226">extractable from any pull. A later</text>
+        <text class="t-ms" x="266" y="242">RUN rm does not remove it either.</text>
+        <text class="t-m t-b t-drop" x="266" y="282">✗  no</text>
+
+        <!-- ── option 3 ── -->
+        <text class="t-xs t-kept" x="504" y="16">option 3 · mount it as a secret</text>
+        <rect class="s-kept" x="504" y="26" width="228" height="30"></rect>
+        <text class="t-ms" x="514" y="46">RUN --mount=type=secret,id=…</text>
+        <rect class="s-box" x="504" y="72" width="228" height="22"></rect>
+        <text class="t-ms" x="514" y="87">app layer</text>
+        <rect class="s-kept" x="504" y="98" width="228" height="22"></rect>
+        <text class="t-ms t-kept t-b" x="514" y="113">restore layer — clean</text>
+        <rect class="s-box2" x="504" y="124" width="228" height="22"></rect>
+        <text class="t-ms" x="514" y="139">base image</text>
+        <!-- the cert, outside the stack, tethered -->
+        <path class="s-accl" d="M700 60 L700 86 L736 86" stroke-dasharray="3 3"></path>
+        <text class="t-ms t-acc" x="620" y="56">cert · /run/secrets/…</text>
+        <text class="t-ms t-acc" x="620" y="70">exists only during that RUN</text>
+        <rect class="s-kept" x="504" y="164" width="228" height="94"></rect>
+        <text class="t-s t-b t-kept" x="514" y="186">Mounted, used, gone.</text>
+        <text class="t-ms" x="514" y="210">In the trust store for one step,</text>
+        <text class="t-ms" x="514" y="226">removed and the bundle restored</text>
+        <text class="t-ms" x="514" y="242">before the layer is committed.</text>
+        <text class="t-m t-b t-kept" x="514" y="282">✓  yes</text>
+      </svg>
+      <figcaption>Option 3 also happens to be the portable one: the Dockerfile guards on `if [ -s /run/secrets/netskope_cert ]`, so omitting `--secret` is a complete no-op. The same file builds on the corporate network, at home, and in CI.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Cue ·</b> worth flagging for later — Buildpacks, <b>ko</b>, <b>jib</b>, Nixpacks and Aspire have no equivalent of <b>--mount=type=secret</b> — they need the CA trusted at host level instead. Talk 14 hits that properly.</p>
+  </div>
+</section>
+
+<!-- ════════ 18 · CACHE KEY GOTCHA ════════ -->
+<section class="slide" data-section="§3a · The build's own trust store" data-title="The cache-key gotcha">
+  <div class="stage">
+    <p class="eyebrow">One non-obvious mechanic that will eventually bite you</p>
+    <h2>A secret's contents are not part of the cache key</h2>
+    <div class="cols cols--2">
+      <div class="cols" style="gap:0.7rem">
+        <div class="card card--kept">
+          <span class="card__k">Why that is good</span>
+          <p>Only the <em>declaration</em> of the mount is hashed, not the file. So the same Dockerfile stays cacheable across machines whose certificates differ — yours, your colleague's, CI's.</p>
+        </div>
+        <div class="card card--drop">
+          <span class="card__k">Why that will confuse you</span>
+          <p>After one successful build, rebuilding <strong>without</strong> <code>--secret</code> reports <code>CACHED</code> and succeeds with no certificate at all. The build looks like it never needed one.</p>
+        </div>
+        <div class="card card--acc">
+          <span class="card__k">So, when demonstrating</span>
+          <p>Always <code>--no-cache</code>. And you cannot use a secret mount to deliberately invalidate cache — it has no effect on the key.</p>
+        </div>
+      </div>
+      <div class="term term--out"><span class="c"># after a successful build, drop the secret:</span>
+<span class="p">PS&gt;</span> docker build -t weatherapi:single -f .\Dockerfile .
+
+<span class="c">#10 [4/6] RUN --mount=type=secret,id=netskope_cert …</span>
+<span class="g">#10 CACHED</span>
+<span class="c">
+# …succeeds. No certificate was involved.
+# The layer was already built and its key did not change.</span>
+
+<span class="c"># which is why beat 1 of the demo needs:</span>
+<span class="p">PS&gt;</span> docker build <span class="g">--no-cache</span> …</div>
+    </div>
+    <p class="note"><b>Cue ·</b> debugging note for this repo: if a heredoc build dies with <b>/bin/sh: 1: set: Illegal option -</b> that is CRLF line endings, not certificates — it fails before any network call, so rule it out first.</p>
+  </div>
+</section>
+<!-- ════════ 19 · §4 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§4 · Layers and cache" data-title="§4 Layers and cache">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">4</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section four · the centre of the talk</p>
+        <h2>Every line you write<br>becomes a layer or a note</h2>
+        <p class="lead">Once you can look at a Dockerfile and see the image it produces, image size and build speed stop being mysteries and become consequences of ordering.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 20 · HERO — DOCKERFILE → LAYERS ════════ -->
+<section class="slide" data-section="§4 · Layers and cache" data-title="★ Dockerfile lines → layers">
+  <div class="stage">
+    <p class="eyebrow">The mapping · measured from this repo's <span class="mono">Dockerfile</span>, today</p>
+    <h2>Which lines cost bytes, and which are just notes</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 800 430" role="img" aria-label="Each Dockerfile instruction mapped by a leader line to what it produces in the image. FROM brings ten inherited layers. WORKDIR produces 8.19 kilobytes, COPY 20.5 kilobytes, RUN restore 41.8 megabytes, RUN publish 5.64 megabytes. ENV, EXPOSE and ENTRYPOINT all converge on the config blob at zero bytes.">
+        <!-- headers -->
+        <text class="t-xs" x="8" y="18">Dockerfile</text>
+        <text class="t-xs" x="430" y="18">the image it produces · bottom layer first</text>
+        <line class="s-rule" x1="8" y1="24" x2="340" y2="24"></line>
+        <line class="s-rule" x1="430" y1="24" x2="792" y2="24"></line>
+
+        <!-- ── code lines ── -->
+        <g>
+          <text class="t-ms" x="8" y="44">1</text>
+          <text class="t-m t-b" x="26" y="44">FROM …/dotnet/sdk:8.0</text>
+          <text class="t-ms" x="8" y="80">2</text>
+          <text class="t-m t-b" x="26" y="80">WORKDIR /workspace</text>
+          <text class="t-ms" x="8" y="116">3</text>
+          <text class="t-m t-b" x="26" y="116">COPY src/. ./src/</text>
+          <text class="t-ms" x="8" y="152">4</text>
+          <text class="t-m t-b" x="26" y="152">RUN dotnet restore</text>
+          <text class="t-ms" x="8" y="188">5</text>
+          <text class="t-m t-b" x="26" y="188">RUN dotnet publish</text>
+          <text class="t-ms" x="8" y="224">6</text>
+          <text class="t-m t-b" x="26" y="224">ENV ASPNETCORE_URLS=…</text>
+          <text class="t-ms" x="8" y="260">7</text>
+          <text class="t-m t-b" x="26" y="260">EXPOSE 8080</text>
+          <text class="t-ms" x="8" y="296">8</text>
+          <text class="t-m t-b" x="26" y="296">ENTRYPOINT ["dotnet", …]</text>
+        </g>
+
+        <!-- annotations under code -->
+        <line class="s-rule" x1="8" y1="322" x2="340" y2="322"></line>
+        <text class="t-ms t-acc" x="8" y="342">FROM · COPY · RUN</text>
+        <text class="t-ms" x="8" y="358">add filesystem layers</text>
+        <text class="t-ms t-kept" x="8" y="384">ENV · EXPOSE · ENTRYPOINT</text>
+        <text class="t-ms" x="8" y="400">USER · CMD · LABEL · ARG</text>
+        <text class="t-ms" x="8" y="416">change only the config — 0 B</text>
+
+        <!-- ── leaders ── -->
+        <path class="s-lead" d="M300 40 L384 40 L384 321 L426 321"></path>
+        <path class="s-lead" d="M300 76 L400 76 L400 243 L426 243"></path>
+        <path class="s-lead" d="M300 112 L410 112 L410 230 L426 230"></path>
+        <path class="s-lead" d="M300 148 L418 148 L418 199 L426 199"></path>
+        <path class="s-lead" d="M300 184 L418 184 L418 161 L426 161"></path>
+        <path class="s-lead" d="M300 220 L392 220 L392 124 L426 124"></path>
+        <path class="s-lead" d="M300 256 L388 256 L388 124 L426 124"></path>
+        <path class="s-lead" d="M300 292 L384 292 L384 124 L426 124"></path>
+
+        <!-- ── the stack ── -->
+        <!-- config blob -->
+        <rect class="s-kept" x="430" y="104" width="210" height="40" stroke-dasharray="5 4"></rect>
+        <text class="t-ms t-kept t-b" x="440" y="122">config blob</text>
+        <text class="t-ms" x="440" y="137">env · ports · entrypoint</text>
+        <text class="t-m t-b t-num" x="792" y="128" text-anchor="end">0 B</text>
+
+        <!-- publish -->
+        <rect class="s-acc" x="430" y="148" width="210" height="26"></rect>
+        <text class="t-ms" x="440" y="165">RUN publish</text>
+        <text class="t-m t-b t-num" x="792" y="166" text-anchor="end">5.64 MB</text>
+
+        <!-- restore -->
+        <rect class="s-acc" x="430" y="176" width="210" height="46"></rect>
+        <text class="t-ms" x="440" y="196">RUN restore</text>
+        <text class="t-ms" x="440" y="212">NuGet packages, left behind</text>
+        <text class="t-m t-b t-num" x="792" y="202" text-anchor="end">41.8 MB</text>
+
+        <!-- copy -->
+        <rect class="s-acc" x="430" y="224" width="210" height="12"></rect>
+        <text class="t-m t-b t-num" x="792" y="234" text-anchor="end">20.5 kB</text>
+        <text class="t-ms" x="646" y="234">COPY src</text>
+
+        <!-- workdir -->
+        <rect class="s-box2" x="430" y="238" width="210" height="10"></rect>
+        <text class="t-ms" x="646" y="247">WORKDIR</text>
+        <text class="t-m t-b t-num" x="792" y="247" text-anchor="end">8.19 kB</text>
+
+        <!-- base -->
+        <rect class="s-box" x="430" y="250" width="210" height="142"></rect>
+        <line class="s-rule" x1="430" y1="264" x2="640" y2="264"></line>
+        <line class="s-rule" x1="430" y1="278" x2="640" y2="278"></line>
+        <line class="s-rule" x1="430" y1="292" x2="640" y2="292"></line>
+        <line class="s-rule" x1="430" y1="306" x2="640" y2="306"></line>
+        <line class="s-rule" x1="430" y1="320" x2="640" y2="320"></line>
+        <line class="s-rule" x1="430" y1="334" x2="640" y2="334"></line>
+        <line class="s-rule" x1="430" y1="348" x2="640" y2="348"></line>
+        <line class="s-rule" x1="430" y1="362" x2="640" y2="362"></line>
+        <line class="s-rule" x1="430" y1="376" x2="640" y2="376"></line>
+        <text class="t-s t-b" x="440" y="286">10 layers inherited</text>
+        <text class="t-ms" x="440" y="302">from the SDK base image</text>
+        <text class="t-ms" x="440" y="342">Debian · apt packages · the</text>
+        <text class="t-ms" x="440" y="357">.NET SDK · PowerShell · git</text>
+        <text class="t-m t-b t-num" x="792" y="322" text-anchor="end">≈ 883 MB</text>
+        <text class="t-ms" x="792" y="340" text-anchor="end">you wrote one line</text>
+        <text class="t-ms" x="792" y="356" text-anchor="end">and got all of this</text>
+
+        <!-- total -->
+        <line class="s-rule" x1="430" y1="404" x2="792" y2="404"></line>
+        <text class="t-s t-b" x="430" y="424">14 layers total</text>
+        <text class="t-s" x="540" y="424">·  docker image ls reports <tspan class="t-b t-num">1.27 GB</tspan></text>
+      </svg>
+      <figcaption>Per-layer sizes are as `docker history` reports them; `docker image ls` totals the same image at 1.27 GB. The two tools count differently.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Cue ·</b> two details worth pausing on: <b>WORKDIR</b> is not quite free — 8.19 kB, because it created a directory. And the 41.8 MB restore layer is <b>NuGet packages that no longer need to exist</b> once publish has run; nothing later in the file can remove them. That is the next slide. <b>On the size discrepancy:</b> quote whichever tool is on screen rather than mixing the two — and if someone spots it, that is a good catch, not a problem.</p>
+  </div>
+</section>
+
+<!-- ════════ 21 · WHAT A LAYER IS ════════ -->
+<section class="slide" data-section="§4 · Layers and cache" data-title="What a layer really is">
+  <div class="stage">
+    <p class="eyebrow">A layer is a diff, not a directory</p>
+    <h2>You can add a file in a later layer. You cannot un-add one.</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 280" role="img" aria-label="Three layers each recording only changes: additions, modifications and deletions. Deletion is recorded as a whiteout marker in the upper layer while the original bytes remain in the lower layer, so the merged view hides the file but the image still carries its weight.">
+        <text class="t-xs" x="8" y="16">each layer records only what changed</text>
+        <text class="t-xs" x="500" y="16">what the process sees</text>
+
+        <!-- layer 1 -->
+        <rect class="s-box2" x="8" y="26" width="150" height="112"></rect>
+        <text class="t-ms t-b" x="18" y="44">layer 1 · base</text>
+        <text class="t-ms t-kept" x="18" y="66">+ /usr/bin/dotnet</text>
+        <text class="t-ms t-kept" x="18" y="84">+ /etc/ssl/certs/…</text>
+        <text class="t-ms t-kept" x="18" y="102">+ /bin/sh</text>
+        <text class="t-ms" x="18" y="128">sha256:85a3…</text>
+
+        <!-- layer 2 -->
+        <rect class="s-box2" x="170" y="26" width="150" height="112"></rect>
+        <text class="t-ms t-b" x="180" y="44">layer 2 · COPY</text>
+        <text class="t-ms t-kept" x="180" y="66">+ /src/Program.cs</text>
+        <text class="t-ms t-kept" x="180" y="84">+ /src/*.csproj</text>
+        <text class="t-ms" x="180" y="128">sha256:1f7c…</text>
+
+        <!-- layer 3 -->
+        <rect class="s-drop" x="332" y="26" width="150" height="112"></rect>
+        <text class="t-ms t-b" x="342" y="44">layer 3 · RUN rm</text>
+        <text class="t-ms" x="342" y="66">~ /app/App.dll</text>
+        <text class="t-ms t-drop t-b" x="342" y="90">⊘ /src/creds.json</text>
+        <text class="t-ms t-drop" x="342" y="106">a whiteout marker —</text>
+        <text class="t-ms t-drop" x="342" y="120">not a deletion</text>
+
+        <!-- merge arrow -->
+        <line class="s-line" x1="490" y1="82" x2="524" y2="82" marker-end="url(#ar8)"></line>
+
+        <!-- merged -->
+        <rect class="s-kept" x="536" y="26" width="196" height="112"></rect>
+        <text class="t-ms" x="546" y="48">/usr/bin/dotnet</text>
+        <text class="t-ms" x="546" y="66">/bin/sh</text>
+        <text class="t-ms" x="546" y="84">/src/Program.cs</text>
+        <text class="t-ms" x="546" y="102">/app/App.dll</text>
+        <text class="t-ms t-drop" x="546" y="126">creds.json — hidden, not gone</text>
+
+        <!-- the two consequences -->
+        <rect class="s-drop" x="8" y="162" width="356" height="106"></rect>
+        <text class="t-s t-b t-drop" x="22" y="184">Consequence 1 · the trap</text>
+        <text class="t-ms" x="22" y="206">RUN wget secret.tar &amp;&amp; use-it &amp;&amp; rm secret.tar</text>
+        <text class="t-ms" x="22" y="226">in <tspan font-weight="600">two separate RUN steps</tspan> leaves the secret in the</text>
+        <text class="t-ms" x="22" y="242">lower layer. Still downloadable. Still in the size.</text>
+        <text class="t-ms t-drop t-b" x="22" y="260">This is exactly why the CA is a secret mount, not a COPY.</text>
+
+        <rect class="s-kept" x="384" y="162" width="348" height="106"></rect>
+        <text class="t-s t-b t-kept" x="398" y="184">Consequence 2 · the gift</text>
+        <text class="t-ms" x="398" y="206">Every layer is a tar archive addressed by the</text>
+        <text class="t-ms" x="398" y="222">SHA-256 of its contents. Identical layers are stored</text>
+        <text class="t-ms" x="398" y="238">and transferred <tspan font-weight="600">once</tspan> — across images, hosts and</text>
+        <text class="t-ms" x="398" y="254">registries. Twenty apps on one base cost one base.</text>
+
+        <defs>
+          <marker id="ar8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>The union filesystem composes the layers at run time; the upper layer wins. A whiteout hides a path from the merged view without reclaiming a single byte from the image.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 22 · CACHE ORDERING ════════ -->
+<section class="slide" data-section="§4 · Layers and cache" data-title="Cache: ordering is everything">
+  <div class="stage">
+    <p class="eyebrow">You change one line of C#. What has to be redone?</p>
+    <h2>The first cache miss invalidates everything after it</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 760 336" role="img" aria-label="The same source edit against two Dockerfile orderings. With a broad COPY before restore, the copy misses and forces restore and publish to re-run. With the project file copied and restored first, restore stays cached and only the source copy and publish re-run.">
+        <!-- event -->
+        <rect class="s-acc" x="8" y="8" width="744" height="30"></rect>
+        <text class="t-s t-b" x="380" y="28" text-anchor="middle">You edit one line in Program.cs and rebuild</text>
+
+        <!-- LEFT: bad -->
+        <text class="t-xs t-drop" x="8" y="60">broad copy first — our single-stage Dockerfile</text>
+        <g>
+          <rect class="s-kept" x="8" y="70" width="252" height="28"></rect>
+          <text class="t-ms" x="18" y="88">FROM sdk:8.0</text>
+          <text class="t-ms t-kept t-b" x="250" y="88" text-anchor="end">HIT</text>
+
+          <rect class="s-drop" x="8" y="104" width="252" height="28"></rect>
+          <text class="t-ms" x="18" y="122">COPY src/. ./src/</text>
+          <text class="t-ms t-drop t-b" x="250" y="122" text-anchor="end">MISS</text>
+
+          <rect class="s-drop" x="8" y="138" width="252" height="44"></rect>
+          <text class="t-ms" x="18" y="156">RUN dotnet restore</text>
+          <text class="t-ms t-drop" x="18" y="172">re-downloads over the network</text>
+          <text class="t-ms t-drop t-b" x="250" y="156" text-anchor="end">MISS</text>
+
+          <rect class="s-drop" x="8" y="188" width="252" height="28"></rect>
+          <text class="t-ms" x="18" y="206">RUN dotnet publish</text>
+          <text class="t-ms t-drop t-b" x="250" y="206" text-anchor="end">MISS</text>
+
+          <text class="t-s t-b t-drop" x="8" y="240">Every source edit pays for a full restore.</text>
+          <text class="t-ms" x="8" y="258">The copied content is part of the cache key, so</text>
+          <text class="t-ms" x="8" y="274">touching any file under src/ — even the README —</text>
+          <text class="t-ms" x="8" y="290">throws away the expensive step below it.</text>
+        </g>
+
+        <!-- divider -->
+        <line class="s-rule" x1="290" y1="52" x2="290" y2="300" stroke-dasharray="4 5"></line>
+
+        <!-- RIGHT: good -->
+        <text class="t-xs t-kept" x="318" y="60">dependencies first — Dockerfile.multistage</text>
+        <g>
+          <rect class="s-kept" x="318" y="70" width="252" height="24"></rect>
+          <text class="t-ms" x="328" y="87">FROM sdk:8.0</text>
+          <text class="t-ms t-kept t-b" x="560" y="87" text-anchor="end">HIT</text>
+
+          <rect class="s-kept" x="318" y="100" width="252" height="24"></rect>
+          <text class="t-ms" x="328" y="117">COPY src/*.csproj ./src/</text>
+          <text class="t-ms t-kept t-b" x="560" y="117" text-anchor="end">HIT</text>
+
+          <rect class="s-kept" x="318" y="130" width="252" height="38"></rect>
+          <text class="t-ms" x="328" y="148">RUN dotnet restore</text>
+          <text class="t-ms t-kept" x="328" y="163">untouched — no network at all</text>
+          <text class="t-ms t-kept t-b" x="560" y="148" text-anchor="end">HIT</text>
+
+          <rect class="s-drop" x="318" y="174" width="252" height="24"></rect>
+          <text class="t-ms" x="328" y="191">COPY src/. ./src/</text>
+          <text class="t-ms t-drop t-b" x="560" y="191" text-anchor="end">MISS</text>
+
+          <rect class="s-drop" x="318" y="204" width="252" height="24"></rect>
+          <text class="t-ms" x="328" y="221">RUN dotnet publish</text>
+          <text class="t-ms t-drop t-b" x="560" y="221" text-anchor="end">MISS</text>
+
+          <text class="t-s t-b t-kept" x="318" y="252">Only compilation re-runs.</text>
+          <text class="t-ms" x="318" y="270">The project file did not change, so restore is</text>
+          <text class="t-ms" x="318" y="286">reused. Copy the thing that rarely changes first.</text>
+        </g>
+
+        <!-- the rule -->
+        <rect class="s-box2" x="588" y="70" width="164" height="158"></rect>
+        <text class="t-xs" x="600" y="90">the cache key</text>
+        <line class="s-rule" x1="600" y1="98" x2="740" y2="98"></line>
+        <text class="t-ms" x="600" y="118">the instruction text</text>
+        <text class="t-ms" x="600" y="140">+ the content of</text>
+        <text class="t-ms" x="600" y="156">   whatever it copies</text>
+        <text class="t-ms" x="600" y="178">+ the key of the</text>
+        <text class="t-ms" x="600" y="194">   layer beneath it</text>
+        <text class="t-ms t-acc t-b" x="600" y="218">→ so order matters</text>
+
+        <text class="t-s" x="588" y="256">Stable and expensive</text>
+        <text class="t-s" x="588" y="274">work early. Volatile</text>
+        <text class="t-s" x="588" y="292">work late.</text>
+      </svg>
+      <figcaption>This is not only a speed question. Predictable caching makes builds cheaper in CI and easier to reason about when something rebuilds that you did not expect.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 23 · DEMO 3 ════════ -->
+<section class="slide slide--demo" data-section="§4 · Layers and cache" data-title="DEMO · docker history">
+  <div class="stage">
+    <span class="demo-badge">Demo 3</span>
+    <h2>Make the layers real</h2>
+    <p class="lead"><strong>docker history</strong> is the bridge from Dockerfile text to image reality. Read it bottom-up — that is build order.</p>
+    <div class="term"><span class="p">PS&gt;</span> docker history weatherapi:single
+
+<span class="c">CREATED BY                                        SIZE</span>
+ENTRYPOINT ["dotnet" "/app/publish/WeatherAp…     <span class="g">0B</span>
+EXPOSE map[8080/tcp:{}]                           <span class="g">0B</span>
+ENV ASPNETCORE_URLS=http://+:8080                 <span class="g">0B</span>
+RUN dotnet publish "src/WeatherApi.csproj" …      5.64MB
+RUN --mount=type=secret … dotnet restore …        <span class="b">41.8MB</span>   <span class="c">← NuGet packages, still here</span>
+COPY src/. ./src/                                 20.5kB
+WORKDIR /workspace                                <span class="c">8.19kB   ← not free after all</span>
+RUN powershell_version=7.4.18 …                   50.4MB  <span class="c">┐</span>
+COPY /dotnet /usr/share/dotnet                    <span class="b">508MB</span>   <span class="c">│ ten layers you</span>
+RUN apt-get update &amp;&amp; apt-get install -y …        94.2MB  <span class="c">│ inherited from</span>
+COPY /dotnet /usr/share/dotnet                    72.8MB  <span class="c">│ one FROM line</span>
+# debian.sh --arch 'amd64' …                      85.3MB  <span class="c">┘</span></div>
+    <p class="note"><b>Cue ·</b> point at the 508 MB line — nobody in the room wrote it. Then: we are shipping a compiler, PowerShell, git and curl to production so that a web API can answer three HTTP endpoints. Section 6 deletes all of it. <b>If <span class="g">dive</span> is installed,</b> this is the moment for it — same idea, but you can see inside each layer.</p>
+  </div>
+</section>
+
+<!-- ════════ 24 · §5 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§5 · Build time vs run time" data-title="§5 Build vs run time">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">5</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section five</p>
+        <h2>What is decided when<br>you build, and what waits</h2>
+        <p class="lead">Four mechanisms, one boundary. Getting these confused is how credentials end up in images and how "it works in dev" becomes a deployment incident.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 25 · ARG / ENV / -e / SECRET ════════ -->
+<section class="slide" data-section="§5 · Build time vs run time" data-title="ARG, ENV, -e, --secret">
+  <div class="stage">
+    <p class="eyebrow">Follow <span class="mono">APP_VERSION</span> across the boundary</p>
+    <h2>ARG is build input. ENV is image config. <span class="mono">-e</span> wins at run time.</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 760 300" role="img" aria-label="A timeline from build time through the image artefact to run time. Build arg enters at build and does not survive unless promoted to an env var. Env is written into the image config and reaches the process. The run flag overrides it. A build secret enters at build and exits before any layer is committed, never crossing into the image.">
+        <!-- zones -->
+        <rect class="s-box" x="8" y="52" width="238" height="196"></rect>
+        <text class="t-xs" x="20" y="72">build time · docker build</text>
+        <rect class="s-kept" x="278" y="52" width="180" height="196"></rect>
+        <text class="t-xs t-kept" x="290" y="72">the image · immutable</text>
+        <rect class="s-box" x="490" y="52" width="262" height="196"></rect>
+        <text class="t-xs" x="502" y="72">run time · docker run</text>
+
+        <!-- boundaries -->
+        <line class="s-rule" x1="262" y1="40" x2="262" y2="260" stroke-dasharray="4 4"></line>
+        <line class="s-rule" x1="474" y1="40" x2="474" y2="260" stroke-dasharray="4 4"></line>
+        <text class="t-xs" x="262" y="32" text-anchor="middle">boundary</text>
+        <text class="t-xs" x="474" y="32" text-anchor="middle">boundary</text>
+
+        <!-- ARG track -->
+        <text class="t-m t-b t-acc" x="20" y="102">ARG</text>
+        <text class="t-ms" x="20" y="118">--build-arg APP_VERSION=1.0.0</text>
+        <line class="s-accl" x1="20" y1="126" x2="274" y2="126" marker-end="url(#ar9a)"></line>
+        <text class="t-ms" x="290" y="102">ENV APP_VERSION=${APP_VERSION}</text>
+        <text class="t-ms t-kept" x="290" y="122">promoted, so it survives</text>
+        <line class="s-keptl" x1="290" y1="130" x2="486" y2="130" marker-end="url(#ar9k)"></line>
+
+        <!-- ENV arrives at process -->
+        <rect class="s-box2" x="502" y="96" width="238" height="52"></rect>
+        <text class="t-ms" x="512" y="116">the process reads</text>
+        <text class="t-m t-b" x="512" y="136">APP_VERSION = 1.0.0</text>
+
+        <!-- -e override -->
+        <text class="t-m t-b t-acc" x="502" y="176">docker run -e APP_VERSION=2.0.0</text>
+        <line class="s-accl" x1="502" y1="184" x2="700" y2="184"></line>
+        <path class="s-accl" d="M700 184 L700 150" marker-end="url(#ar9a)"></path>
+        <text class="t-ms t-acc" x="502" y="200">overrides the image value — no rebuild</text>
+
+        <!-- SECRET track: enters and leaves -->
+        <text class="t-m t-b t-drop" x="20" y="176">--secret</text>
+        <text class="t-ms" x="20" y="192">the CA certificate</text>
+        <path class="s-dropl" d="M20 200 L150 200 L150 228 L20 228" stroke-dasharray="4 3" marker-end="url(#ar9d)"></path>
+        <text class="t-ms t-drop" x="20" y="246">in for one RUN, then out. Never crosses.</text>
+
+        <!-- warning -->
+        <rect class="s-drop" x="8" y="266" width="744" height="28"></rect>
+        <text class="t-s t-b" x="20" y="285">ARG values are visible in docker history — an ARG is never a place for a password, a token or a key.</text>
+
+        <defs>
+          <marker id="ar9a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--accent)"></path>
+          </marker>
+          <marker id="ar9k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path>
+          </marker>
+          <marker id="ar9d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--drop)"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>An `ARG` exists only during the build. It reaches run time only if a stage explicitly promotes it into an `ENV` — which is exactly what `Dockerfile.multistage` does to stamp the version CI built.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Cue ·</b> call back to demo 1 — <b>/info</b> reported <b>version: dev</b> when we ran it with plain <b>dotnet run</b>. After the multi-stage build it will report <b>1.0.0</b> — stamped at build time — and <b>docker run -e APP_VERSION=2.0.0</b> will override it without touching the image.</p>
+  </div>
+</section>
+<!-- ════════ 26 · §6 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§6 · Multi-stage builds" data-title="§6 Multi-stage builds">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">6</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section six · the payoff</p>
+        <h2>Build with the toolchain.<br>Ship without it.</h2>
+        <p class="lead">One Dockerfile, two <code>FROM</code> lines. Compilation happens in an image that has a compiler; execution happens in an image that has only a runtime. For compiled languages this is simply the normal shape.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 27 · TWO STAGES, ONE BOUNDARY ════════ -->
+<section class="slide" data-section="§6 · Multi-stage builds" data-title="Two stages, one boundary">
+  <div class="stage">
+    <p class="eyebrow">One arrow crosses. Everything else is thrown away.</p>
+    <h2>The build stage is scaffolding, not cargo</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 760 326" role="img" aria-label="Stage one builds using the SDK image, producing published output. A single COPY from build instruction carries 2.71 megabytes of published output across the stage boundary into stage two, which starts from the smaller ASP.NET runtime image. Everything else in stage one, including the SDK and the NuGet cache, is discarded.">
+        <!-- STAGE 1 -->
+        <text class="t-xs t-drop" x="8" y="16">stage 1 · FROM sdk:8.0 AS build — discarded</text>
+        <rect class="s-drop" x="8" y="26" width="330" height="222"></rect>
+        <rect class="s-box" x="22" y="42" width="302" height="26"></rect>
+        <text class="t-ms" x="32" y="59">COPY src/*.csproj  ·  cache-friendly</text>
+        <rect class="s-box" x="22" y="74" width="302" height="40"></rect>
+        <text class="t-ms" x="32" y="92">RUN --mount=type=secret … dotnet restore</text>
+        <text class="t-ms t-drop" x="32" y="107">41.8 MB of NuGet packages</text>
+        <rect class="s-box" x="22" y="120" width="302" height="26"></rect>
+        <text class="t-ms" x="32" y="137">COPY src/. ./src/</text>
+        <rect class="s-box" x="22" y="152" width="302" height="26"></rect>
+        <text class="t-ms" x="32" y="169">RUN dotnet publish -o /app/publish</text>
+        <rect class="s-box2" x="22" y="184" width="302" height="50"></rect>
+        <text class="t-ms t-b" x="32" y="204">the SDK · compiler · PowerShell · git · curl</text>
+        <text class="t-ms" x="32" y="222">the source tree · the package cache</text>
+        <text class="t-s t-b t-drop" x="8" y="272">≈ 883 MB stays behind.</text>
+        <text class="t-ms" x="8" y="292">Never pushed. Never pulled. Never scanned</text>
+        <text class="t-ms" x="8" y="308">for CVEs. Never present in production.</text>
+
+        <!-- boundary -->
+        <line class="s-rule" x1="376" y1="8" x2="376" y2="318" stroke-dasharray="5 5"></line>
+        <text class="t-xs" x="376" y="322" text-anchor="middle">stage boundary</text>
+
+        <!-- the one crossing -->
+        <line class="s-keptl" x1="338" y1="166" x2="410" y2="166" marker-end="url(#ar10)"></line>
+        <text class="t-ms t-kept t-b" x="376" y="146" text-anchor="middle">COPY --from=build</text>
+        <text class="t-ms t-kept" x="376" y="192" text-anchor="middle">/app/publish ./</text>
+        <text class="t-ms t-kept t-b" x="376" y="208" text-anchor="middle">2.71 MB</text>
+
+        <!-- STAGE 2 -->
+        <text class="t-xs t-kept" x="414" y="16">stage 2 · FROM aspnet:8.0 AS runtime — shipped</text>
+        <rect class="s-kept" x="414" y="26" width="338" height="222"></rect>
+        <rect class="s-box2" x="428" y="42" width="310" height="52"></rect>
+        <text class="t-ms t-b" x="438" y="62">6 layers · the ASP.NET Core runtime</text>
+        <text class="t-ms" x="438" y="80">no compiler, no SDK, no PowerShell</text>
+        <rect class="s-box" x="428" y="100" width="310" height="26"></rect>
+        <text class="t-ms" x="438" y="117">WORKDIR /app  ·  ENV  ·  ARG</text>
+        <rect class="s-kept" x="428" y="132" width="310" height="30"></rect>
+        <text class="t-ms t-b" x="438" y="152">the published output — 2.71 MB</text>
+        <rect class="s-acc" x="428" y="168" width="310" height="30"></rect>
+        <text class="t-ms t-b" x="438" y="188">USER app  ·  drops root</text>
+        <rect class="s-box" x="428" y="204" width="310" height="30"></rect>
+        <text class="t-ms" x="438" y="224">EXPOSE 8080  ·  ENTRYPOINT</text>
+        <text class="t-s t-b t-kept" x="414" y="272">8 layers  ·  324 MB total.</text>
+        <text class="t-ms" x="414" y="292">Of which our application is 2.71 MB. The rest is</text>
+        <text class="t-ms" x="414" y="308">a runtime shared with every other .NET image.</text>
+
+        <defs>
+          <marker id="ar10" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>`COPY --from=build` is the only channel between the stages. Anything you do not explicitly carry across does not exist in the final image — including mistakes, caches and credentials.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 28 · WHAT IT BOUGHT US ════════ -->
+<section class="slide" data-section="§6 · Multi-stage builds" data-title="What it bought us">
+  <div class="stage">
+    <p class="eyebrow">Same application · same endpoints · measured on this machine today</p>
+    <h2>1.27 GB becomes 324 MB for eleven extra lines</h2>
+    <div class="cols cols--side-r">
+      <div class="svgwrap">
+      <figure>
+        <svg viewBox="0 0 620 250" role="img" aria-label="Bar chart comparing image sizes. Single stage 1.27 gigabytes. Multi-stage 324 megabytes. The ASP.NET runtime base image alone 320 megabytes. The scratch bonus image 1.82 megabytes, too small to render as a visible bar.">
+          <!-- axis -->
+          <line class="s-rule" x1="176" y1="24" x2="176" y2="196"></line>
+
+          <!-- single -->
+          <text class="t-s" x="168" y="46" text-anchor="end">single-stage</text>
+          <rect class="s-drop" x="176" y="30" width="420" height="26"></rect>
+          <text class="t-m t-b t-num t-drop" x="586" y="48" text-anchor="end">1.27 GB</text>
+          <text class="t-ms" x="182" y="72">14 layers · ships the SDK, compiler, PowerShell, git</text>
+
+          <!-- multi -->
+          <text class="t-s" x="168" y="106" text-anchor="end">multi-stage</text>
+          <rect class="s-kept" x="176" y="90" width="107" height="26"></rect>
+          <text class="t-m t-b t-num t-kept" x="291" y="108">324 MB</text>
+          <text class="t-ms" x="182" y="132">8 layers · non-root · runtime only</text>
+
+          <!-- base -->
+          <text class="t-s" x="168" y="166" text-anchor="end">aspnet:8.0 base</text>
+          <rect class="s-box2" x="176" y="150" width="106" height="26"></rect>
+          <text class="t-ms t-num" x="290" y="168">320 MB</text>
+          <text class="t-ms" x="182" y="192">our app accounts for 2.71 MB of the 324</text>
+
+          <!-- scratch -->
+          <text class="t-s" x="168" y="222" text-anchor="end">scratch bonus</text>
+          <rect class="s-acc" x="176" y="210" width="3" height="20"></rect>
+          <line class="s-lead" x1="180" y1="220" x2="230" y2="220"></line>
+          <text class="t-m t-b t-num t-acc" x="238" y="224">1.82 MB</text>
+          <text class="t-ms" x="310" y="224">1 layer — too small to draw</text>
+        </svg>
+        <figcaption>Bars are linear and to scale, which is why the `scratch` image cannot be drawn at all.</figcaption>
+      </figure>
+      </div>
+      <div class="cols" style="gap:0.65rem">
+        <div class="card card--kept">
+          <span class="card__k">Operations</span>
+          <p><strong>950 MB less</strong> to push, pull, cache on every node and store in every registry — on every deploy, forever.</p>
+        </div>
+        <div class="card card--kept">
+          <span class="card__k">Security</span>
+          <p>No compiler, no package manager, no <code>git</code>, no <code>curl</code> in production. Fewer packages to scan and far less for an attacker to work with. And <code>USER app</code> means the process is not root.</p>
+        </div>
+        <div class="card card--acc">
+          <span class="card__k">The honest caveat</span>
+          <p>Smaller is not automatically secure. The useful question is <strong>"does the final image contain only what this process needs to run?"</strong> — not "how few megabytes can I get to?"</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 29 · DEMO 4 ════════ -->
+<section class="slide slide--demo" data-section="§6 · Multi-stage builds" data-title="DEMO · Build and compare">
+  <div class="stage">
+    <span class="demo-badge">Demo 4</span>
+    <h2>Build the multi-stage image, then put them side by side</h2>
+    <div class="term"><span class="p">PS&gt;</span> docker build --secret id=netskope_cert,src=.\certs\netskope.crt `
+        -t weatherapi:multi -f .\Dockerfile.multistage <span class="g">--build-arg APP_VERSION=1.0.0</span> .
+
+<span class="p">PS&gt;</span> docker run --rm -d --name weatherapi-multi -p 8080:8080 `
+        -e ASPNETCORE_ENVIRONMENT=Production weatherapi:multi
+
+<span class="p">PS&gt;</span> Invoke-RestMethod http://localhost:8080/info
+<span class="c">app         : Weather API
+version     : </span><span class="g">1.0.0</span><span class="c">          ← stamped by --build-arg at BUILD time
+environment : Production</span></div>
+    <div class="term term--out"><span class="p">PS&gt;</span> docker image ls weatherapi
+<span class="c">REPOSITORY    TAG      SIZE
+weatherapi    single   </span><span class="b">1.27GB</span><span class="c">
+weatherapi    multi    </span><span class="g">324MB</span><span class="c">
+
+# and the run-time override, no rebuild:</span>
+<span class="p">PS&gt;</span> docker run --rm -e APP_VERSION=2.0.0 -p 8081:8080 weatherapi:multi
+<span class="c">version : </span><span class="g">2.0.0</span></div>
+    <p class="note"><b>Cue ·</b> also worth showing: <b>docker exec -it weatherapi-multi whoami</b> → <b>app</b>, not root. And <b>docker history weatherapi:multi</b> — the restore layer is simply <b>not there</b>. It was built, used, and left behind in a stage nobody ships.</p>
+  </div>
+</section>
+
+<!-- ════════ 30 · §7 CACHE MOUNTS ════════ -->
+<section class="slide" data-section="§7 · BuildKit cache mounts" data-title="§7 BuildKit cache mounts">
+  <div class="stage">
+    <p class="eyebrow">Section seven · faster feedback without fatter images</p>
+    <h2>Keep the package cache beside the build, not inside the image</h2>
+    <div class="cols cols--side-r">
+      <div class="svgwrap">
+      <figure>
+        <svg viewBox="0 0 620 250" role="img" aria-label="A cache mount attaches a persistent package cache from the builder to a single RUN step. Packages are reused between builds but the cache never becomes part of any layer, so the restore layer stays small.">
+          <!-- persistent cache store -->
+          <rect class="s-acc" x="8" y="20" width="180" height="80"></rect>
+          <text class="t-xs t-acc" x="20" y="40">buildkit cache store</text>
+          <text class="t-ms" x="20" y="62">~/.nuget/packages</text>
+          <text class="t-ms" x="20" y="80">survives between builds</text>
+          <text class="t-ms" x="20" y="96">never in an image</text>
+
+          <!-- the RUN step -->
+          <rect class="s-box" x="248" y="20" width="230" height="80"></rect>
+          <text class="t-xs" x="260" y="40">one RUN step</text>
+          <text class="t-ms" x="260" y="62">RUN --mount=type=cache,\</text>
+          <text class="t-ms" x="260" y="78">  target=/root/.nuget/packages \</text>
+          <text class="t-ms" x="260" y="94">  dotnet restore</text>
+
+          <!-- arrows both ways -->
+          <line class="s-accl" x1="188" y1="50" x2="244" y2="50" marker-end="url(#ar11)"></line>
+          <text class="t-ms t-acc" x="216" y="42" text-anchor="middle">reuse</text>
+          <line class="s-accl" x1="244" y1="80" x2="188" y2="80" marker-end="url(#ar11)"></line>
+          <text class="t-ms t-acc" x="216" y="96" text-anchor="middle">refill</text>
+
+          <!-- resulting layer -->
+          <line class="s-line" x1="363" y1="100" x2="363" y2="134" marker-end="url(#ar11b)"></line>
+          <rect class="s-kept" x="248" y="140" width="230" height="44"></rect>
+          <text class="t-ms t-b" x="260" y="160">the committed layer</text>
+          <text class="t-ms" x="260" y="176">contains the restore result, not the cache</text>
+
+          <!-- contrast -->
+          <rect class="s-drop" x="8" y="140" width="180" height="44"></rect>
+          <text class="t-ms t-b t-drop" x="20" y="160">without a cache mount</text>
+          <text class="t-ms" x="20" y="176">41.8 MB of packages, baked in</text>
+
+          <line class="s-rule" x1="8" y1="204" x2="612" y2="204"></line>
+          <text class="t-s t-b" x="8" y="228">Build acceleration and runtime contents are separate concerns.</text>
+          <text class="t-ms" x="8" y="244">The cache helps the builder. It never becomes part of the artefact you deploy.</text>
+
+          <defs>
+            <marker id="ar11" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M0,1 L9,5 L0,9 z" fill="var(--accent)"></path>
+            </marker>
+            <marker id="ar11b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M0,1 L9,5 L0,9 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+        </svg>
+        <figcaption>Cache mounts, like secret mounts, exist only for the duration of one `RUN` — the same mechanism, used for speed rather than confidentiality.</figcaption>
+      </figure>
+      </div>
+      <div class="cols" style="gap:0.65rem">
+        <div class="card">
+          <span class="card__k">Straight with you</span>
+          <p>Neither Dockerfile in this talk uses a cache mount — they were kept simple on purpose. This is the next improvement, not something already in the code.</p>
+        </div>
+        <div class="card card--acc">
+          <span class="card__k">What it actually buys</span>
+          <p>In the <em>multi-stage</em> build the restore layer is discarded anyway, so a cache mount buys <strong>build speed</strong>, not a smaller image. In the <em>single-stage</em> build it would also remove those 41.8 MB from the shipped result.</p>
+        </div>
+        <div class="card">
+          <span class="card__k">Why the syntax line matters</span>
+          <p><code># syntax=docker/dockerfile:1.7</code> at the top of the file is what makes these mount options available. BuildKit is the default builder in modern Docker Desktop.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 31 · §8 OPERATIONAL BASICS ════════ -->
+<section class="slide" data-section="§8 · Operating containers" data-title="§8 Ports and logs">
+  <div class="stage">
+    <p class="eyebrow">Section eight · two things people get wrong on day one</p>
+    <h2>EXPOSE opens nothing. Logs belong on stdout.</h2>
+    <div class="cols cols--2">
+      <div class="svgwrap">
+      <figure>
+        <svg viewBox="0 0 460 260" role="img" aria-label="A host boundary with a single opening created by the publish flag. The first container is reachable because minus p published its port; a second container that only declares EXPOSE has no opening and is unreachable from the host.">
+          <text class="t-xs" x="0" y="14">ports</text>
+          <!-- host wall -->
+          <line class="s-rule" x1="128" y1="26" x2="128" y2="234" stroke-width="3"></line>
+          <text class="t-xs" x="0" y="34">host</text>
+          <text class="t-xs" x="140" y="34">containers</text>
+
+          <!-- reachable -->
+          <text class="t-ms" x="0" y="62">localhost:8080</text>
+          <line class="s-keptl" x1="0" y1="72" x2="196" y2="72" marker-end="url(#ar12k)"></line>
+          <rect class="s-kept" x="200" y="52" width="256" height="44"></rect>
+          <text class="t-ms t-b" x="210" y="72">-p 8080:8080</text>
+          <text class="t-ms" x="210" y="88">host port : container port</text>
+
+          <!-- remapped -->
+          <text class="t-ms" x="0" y="126">localhost:5000</text>
+          <line class="s-keptl" x1="0" y1="136" x2="196" y2="136" marker-end="url(#ar12k)"></line>
+          <rect class="s-box" x="200" y="116" width="256" height="44"></rect>
+          <text class="t-ms t-b" x="210" y="136">-p 5000:8080</text>
+          <text class="t-ms" x="210" y="152">the host chooses; the app still hears 8080</text>
+
+          <!-- unreachable -->
+          <text class="t-ms t-drop" x="0" y="190">no route in</text>
+          <line class="s-dropl" x1="0" y1="200" x2="118" y2="200" stroke-dasharray="4 4"></line>
+          <text class="t-m t-b t-drop" x="122" y="205">✕</text>
+          <rect class="s-drop" x="200" y="180" width="256" height="44"></rect>
+          <text class="t-ms t-b" x="210" y="200">EXPOSE 8080 only</text>
+          <text class="t-ms" x="210" y="216">documentation. Opens nothing.</text>
+
+          <text class="t-ms" x="0" y="250">The container listens on 8080 either way — the host decides who may reach it.</text>
+
+          <defs>
+            <marker id="ar12k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path>
+            </marker>
+          </defs>
+        </svg>
+        <figcaption>`-p` creates the opening; `EXPOSE` only records the intent. A container with no published port is still listening — just not from the host.</figcaption>
+      </figure>
+      </div>
+      <div class="svgwrap">
+      <figure>
+        <svg viewBox="0 0 460 260" role="img" aria-label="Logs written to standard output are picked up by the container log driver and reach docker logs and the platform's collector. Logs written to a file inside the container are invisible to the platform and are destroyed with the container.">
+          <text class="t-xs" x="0" y="14">logs</text>
+
+          <!-- right way -->
+          <rect class="s-kept" x="0" y="26" width="140" height="40"></rect>
+          <text class="t-ms t-b" x="10" y="44">your process</text>
+          <text class="t-ms" x="10" y="59">stdout + stderr</text>
+          <line class="s-keptl" x1="140" y1="46" x2="180" y2="46" marker-end="url(#ar13k)"></line>
+          <rect class="s-box" x="184" y="26" width="128" height="40"></rect>
+          <text class="t-ms" x="194" y="50">log driver</text>
+          <line class="s-keptl" x1="312" y1="46" x2="352" y2="46" marker-end="url(#ar13k)"></line>
+          <rect class="s-box" x="356" y="26" width="104" height="40"></rect>
+          <text class="t-ms" x="366" y="44">docker logs</text>
+          <text class="t-ms" x="366" y="59">Loki · ACA · AKS</text>
+          <text class="t-ms t-kept" x="0" y="88">the platform collects them without entering the container</text>
+
+          <!-- wrong way -->
+          <rect class="s-drop" x="0" y="120" width="140" height="40"></rect>
+          <text class="t-ms t-b" x="10" y="138">your process</text>
+          <text class="t-ms" x="10" y="153">/var/log/app.log</text>
+          <line class="s-dropl" x1="140" y1="140" x2="180" y2="140" stroke-dasharray="4 4"></line>
+          <text class="t-m t-b t-drop" x="186" y="145">✕</text>
+          <rect class="s-drop" x="212" y="120" width="248" height="40"></rect>
+          <text class="t-ms" x="222" y="138">invisible to the platform, and deleted</text>
+          <text class="t-ms" x="222" y="153">with the container's writable layer</text>
+
+          <line class="s-rule" x1="0" y1="184" x2="460" y2="184"></line>
+          <text class="t-s t-b" x="0" y="206">Containers are easier to operate when nothing</text>
+          <text class="t-s t-b" x="0" y="224">has to go inside them to find out what happened.</text>
+          <text class="t-ms" x="0" y="248">Talk 15 builds the whole observability story on this one habit.</text>
+
+          <defs>
+            <marker id="ar13k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path>
+            </marker>
+          </defs>
+        </svg>
+        <figcaption>Standard output is the only log destination the platform can collect without reaching inside the container.</figcaption>
+      </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 32 · §9 BONUS — SCRATCH ════════ -->
+<section class="slide" data-section="§9 · Bonus corner" data-title="§9 Bonus — scratch">
+  <div class="stage">
+    <p class="eyebrow">Section nine · the bonus corner · how far can this go?</p>
+    <h2>A container image can be one binary and nothing else</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 264" role="img" aria-label="The ASP.NET runtime image contains a shell, package manager, C library, certificate bundle and timezone data across six layers totalling 320 megabytes. The scratch image contains a single static Go binary in one layer of 1.82 megabytes, and therefore has no shell, no certificate store, no user database and no timezone data.">
+        <!-- left: a normal image -->
+        <text class="t-xs" x="8" y="16">mcr.microsoft.com/dotnet/aspnet:8.0</text>
+        <rect class="s-box" x="8" y="26" width="300" height="150"></rect>
+        <text class="t-ms" x="20" y="48">/bin/sh · coreutils</text>
+        <text class="t-ms" x="20" y="68">apt · dpkg</text>
+        <text class="t-ms" x="20" y="88">libc6 · libssl3 · libicu72</text>
+        <text class="t-ms" x="20" y="108">ca-certificates · tzdata</text>
+        <text class="t-ms" x="20" y="128">/etc/passwd · the app user</text>
+        <text class="t-ms" x="20" y="148">the .NET runtime</text>
+        <text class="t-ms t-b" x="20" y="168">6 layers · 320 MB</text>
+
+        <!-- right: scratch -->
+        <text class="t-xs t-acc" x="440" y="16">FROM scratch</text>
+        <rect class="s-acc" x="440" y="26" width="292" height="150"></rect>
+        <text class="t-m t-b" x="452" y="52">/hello</text>
+        <text class="t-ms" x="452" y="72">a static Go binary, CGO_ENABLED=0</text>
+        <text class="t-ms" x="452" y="100">…and that is the entire filesystem.</text>
+        <text class="t-ms t-b t-acc" x="452" y="168">1 layer · 1.82 MB</text>
+
+        <!-- arrow -->
+        <line class="s-accl" x1="318" y1="100" x2="430" y2="100" marker-end="url(#ar14)"></line>
+        <text class="t-ms t-acc" x="374" y="92" text-anchor="middle">strip everything</text>
+
+        <!-- the price -->
+        <rect class="s-drop" x="8" y="192" width="724" height="64"></rect>
+        <text class="t-s t-b t-drop" x="22" y="214">The price, and it is a real one:</text>
+        <text class="t-ms" x="22" y="234">no shell — <tspan font-weight="600">docker exec … sh</tspan> fails outright, so there is no poking around at 3am. No CA bundle, so outbound TLS</text>
+        <text class="t-ms" x="22" y="250">fails until you copy one in. No <tspan font-weight="600">/etc/passwd</tspan>, no timezone data, no DNS resolver config unless you provide them.</text>
+
+        <defs>
+          <marker id="ar14" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--accent)"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>`scratch` is the useful extreme, not a recommendation. It strips the model to its minimum so the shape is unmistakable — and then shows you what the shape costs.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Cue ·</b> ask the room: which is riskier — a large image full of familiar tools, or a tiny one that makes live debugging impossible? There is no single right answer, and the disagreement is the useful part. <b>Talk 07</b> takes this on properly with distroless and Chainguard images.</p>
+  </div>
+</section>
+
+<!-- ════════ 33 · DEMO 5 ════════ -->
+<section class="slide slide--demo" data-section="§9 · Bonus corner" data-title="DEMO · dive and scratch">
+  <div class="stage">
+    <span class="demo-badge">Demo 5 · bonus</span>
+    <h2>Look inside the layers, then build the smallest thing that runs</h2>
+    <div class="term"><span class="p">PS&gt;</span> dive weatherapi:multi
+<span class="c"># layer list on the left, filesystem changes on the right.
+# Wasted space and accidental files become obvious immediately.
+# Not installed? docker history makes the same point.</span>
+
+<span class="p">PS&gt;</span> docker build -t hello-scratch -f .\bonus\Dockerfile.scratch .\bonus
+<span class="p">PS&gt;</span> docker run --rm hello-scratch
+<span class="g">Hello from a scratch container! No OS, no shell, just a binary.</span>
+
+<span class="p">PS&gt;</span> docker image ls hello-scratch
+<span class="c">REPOSITORY      TAG      SIZE
+hello-scratch   latest   </span><span class="g">1.82MB</span>
+
+<span class="p">PS&gt;</span> docker run --rm -it --entrypoint sh hello-scratch
+<span class="b">exec: "sh": executable file not found in $PATH</span>   <span class="c">← there is no shell. At all.</span></div>
+    <p class="note"><b>Cue ·</b> run that last command deliberately — the error is the lesson: the trade-off stops being abstract the moment someone watches a shell fail to exist. <b>Then close with cleanup</b> so the next rehearsal is deterministic.</p>
+  </div>
+</section>
+
+<!-- ════════ 34 · DISCUSSION ════════ -->
+<section class="slide" data-section="Close" data-title="Discussion">
+  <div class="stage">
+    <p class="eyebrow">Over to you</p>
+    <h2>Six questions worth arguing about</h2>
+    <div class="cols cols--3">
+      <div class="card">
+        <span class="card__k">01 · context</span>
+        <p>What in your current project would accidentally enter a build context if <code>.dockerignore</code> were missing?</p>
+      </div>
+      <div class="card">
+        <span class="card__k">02 · boundaries</span>
+        <p>When would a VM still be the better boundary than a container?</p>
+      </div>
+      <div class="card">
+        <span class="card__k">03 · trade-offs</span>
+        <p>Which is riskier: a large image full of familiar tools, or a tiny one you cannot debug?</p>
+      </div>
+      <div class="card">
+        <span class="card__k">04 · configuration</span>
+        <p>What should be fixed at build time, and what must stay runtime configuration?</p>
+      </div>
+      <div class="card card--acc">
+        <span class="card__k">05 · the tell</span>
+        <p>A source edit forces a full dependency restore every time. Which ordering mistake do you suspect first?</p>
+      </div>
+      <div class="card card--acc">
+        <span class="card__k">06 · secrets</span>
+        <p>Your build needs a credential to fetch dependencies. How do you supply it without shipping it?</p>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> 05 and 06 are the two that reliably start an argument, so keep them in reserve if the room is quiet. Question 05's answer is a broad <b>COPY</b> before the restore step — slide 22. If nobody bites on 02, offer the concrete case: untrusted third-party code, or strict regulatory separation.</p>
+  </div>
+</section>
+
+<!-- ════════ 35 · TAKEAWAYS ════════ -->
+<section class="slide" data-section="Close" data-title="Takeaways">
+  <div class="stage">
+    <p class="eyebrow">The close</p>
+    <h2>Eight things to leave with</h2>
+    <div class="cols cols--2">
+      <ul class="list">
+        <li><span class="list__m">01</span><span>A container is <strong>a process with packaged dependencies</strong>, sharing the host kernel — not a small VM.</span></li>
+        <li><span class="list__m">02</span><span>An <strong>image is inert data</strong>; a container is that image plus runtime configuration plus a running process.</span></li>
+        <li><span class="list__m">03</span><span><strong>RUN executes inside the image</strong> — its network, filesystem and CA trust store are the base image's, never yours.</span></li>
+        <li><span class="list__m">04</span><span>Build-time secrets belong in <code>--mount=type=secret</code>. Never a <code>COPY</code>, never an <code>ARG</code>.</span></li>
+      </ul>
+      <ul class="list">
+        <li><span class="list__m">05</span><span><strong>Ordering matters</strong> because cache keys are content-sensitive and the first miss invalidates everything after it.</span></li>
+        <li><span class="list__m">06</span><span><code>ARG</code> is build input; <code>ENV</code> and <code>docker run</code> shape runtime behaviour.</span></li>
+        <li><span class="list__m">07</span><span><code>.dockerignore</code> is a <strong>security and performance control</strong>, not housekeeping.</span></li>
+        <li><span class="list__m">08</span><span><strong>Multi-stage is the normal shape</strong> for compiled apps — and <code>USER app</code> is a one-line security win.</span></li>
+      </ul>
+    </div>
+    <div class="card card--kept">
+      <span class="card__k">If only one sentence survives the week</span>
+      <p><strong>Container quality is about boundaries:</strong> what enters the build context, what becomes a layer, what crosses into the final image, and what is supplied at run time. Every question in this talk was one of those four.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 36 · NEXT ════════ -->
+<section class="slide slide--title" data-section="Close" data-title="Next: Talk 02">
+  <div class="stage">
+    <p class="eyebrow">Next in the series</p>
+    <h1>Talk 02 — Runtime<br>configuration</h1>
+    <p class="lead">We built an immutable artefact. Now we make it behave differently without rebuilding it: <strong>environment variables, secrets, networking, bind mounts, volumes, tmpfs, health checks and resource limits</strong> — in Python and Flask, because none of this is language-specific.</p>
+    <div class="title-meta">
+      <span>Language <b>Python · Flask</b></span>
+      <span>Bonus next time <b>Podman, the daemonless alternative</b></span>
+      <span>This talk's code <b>talk-01-container-fundamentals/</b></span>
+    </div>
+    <p class="note"><b>Cue ·</b> to run this talk again: <b>RUNSHEET.md</b> for the commands, <b>notes/README.md</b> for the narrative, both keyed to these slide numbers. Cleanup block is at the bottom of the runsheet — run it so the next rehearsal is deterministic.</p>
+  </div>
+</section>
+</main>
+
+<footer class="rail rail--bottom">
+  <button class="navbtn" id="btnPrev" aria-label="Previous slide">← prev</button>
+  <button class="navbtn" id="btnNext" aria-label="Next slide">next →</button>
+  <span class="rail__spacer"></span>
+  <span class="ticks" id="ticks" role="tablist" aria-label="Jump to slide"></span>
+  <span class="rail__spacer"></span>
+  <button class="navbtn" id="btnNotes" aria-pressed="true" aria-label="Show or hide speaker cues">cues · N</button>
+  <button class="navbtn" id="btnOv" aria-label="Open slide index">index · O</button>
+  <span class="counter" id="counter">1 / 1</span>
+</footer>
+
+<div class="ov" id="ov" role="dialog" aria-modal="true" aria-label="Slide index">
+  <h2>Slide index</h2>
+  <p class="note" style="margin-top:0.5rem">Click a slide to jump. <span class="kbd">O</span> or <span class="kbd">Esc</span> closes this.</p>
+  <div class="ov__grid" id="ovGrid"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var slides  = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var ticksEl = document.getElementById("ticks");
+  var counter = document.getElementById("counter");
+  var sectEl  = document.getElementById("sectionLabel");
+  var ov      = document.getElementById("ov");
+  var ovGrid  = document.getElementById("ovGrid");
+  var current = 0;
+
+  // ── build ticks + index ──
+  slides.forEach(function (s, i) {
+    var t = document.createElement("button");
+    t.className = "ticks__t";
+    t.type = "button";
+    t.setAttribute("role", "tab");
+    t.setAttribute("aria-label", "Slide " + (i + 1) + ": " + (s.dataset.title || ""));
+    t.addEventListener("click", function () { go(i); });
+    ticksEl.appendChild(t);
+
+    var b = document.createElement("button");
+    b.className = "ov__i";
+    b.type = "button";
+    b.innerHTML = '<span class="n">' + String(i + 1).padStart(2, "0") + '</span><span class="s"></span>';
+    b.querySelector(".s").textContent = s.dataset.title || ("Slide " + (i + 1));
+    b.addEventListener("click", function () { go(i); closeOv(); });
+    ovGrid.appendChild(b);
+  });
+  var tickEls = Array.prototype.slice.call(ticksEl.children);
+  var ovEls   = Array.prototype.slice.call(ovGrid.children);
+
+  function render() {
+    slides.forEach(function (s, i) { s.classList.toggle("is-active", i === current); });
+    tickEls.forEach(function (t, i) {
+      if (i === current) { t.setAttribute("aria-current", "true"); }
+      else { t.removeAttribute("aria-current"); }
+      if (i <= current) { t.dataset.seen = "1"; }
+    });
+    ovEls.forEach(function (b, i) {
+      if (i === current) { b.setAttribute("aria-current", "true"); }
+      else { b.removeAttribute("aria-current"); }
+    });
+    counter.textContent = (current + 1) + " / " + slides.length;
+    sectEl.textContent = slides[current].dataset.section || "";
+    var active = slides[current];
+    if (active) { active.scrollTop = 0; }
+  }
+
+  function go(i, skipHash) {
+    current = Math.max(0, Math.min(slides.length - 1, i));
+    render();
+    if (!skipHash) {
+      var h = "#" + (current + 1);
+      if (window.location.hash !== h) {
+        history.replaceState(null, "", h);
+      }
+    }
+  }
+  function next() { if (current < slides.length - 1) { go(current + 1); } }
+  function prev() { if (current > 0) { go(current - 1); } }
+
+  function openOv()  { ov.classList.add("is-open"); }
+  function closeOv() { ov.classList.remove("is-open"); }
+  function toggleOv() { ov.classList.contains("is-open") ? closeOv() : openOv(); }
+
+  document.getElementById("btnNext").addEventListener("click", next);
+  document.getElementById("btnPrev").addEventListener("click", prev);
+  document.getElementById("btnOv").addEventListener("click", toggleOv);
+
+  // ── presenter cues + chrome ──
+  var btnNotes = document.getElementById("btnNotes");
+  function toggleNotes() {
+    var hidden = document.body.classList.toggle("hide-notes");
+    btnNotes.setAttribute("aria-pressed", hidden ? "false" : "true");
+  }
+  function toggleChrome() { document.body.classList.toggle("no-chrome"); }
+  btnNotes.addEventListener("click", toggleNotes);
+
+  document.addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) { return; }
+    var k = e.key;
+    if (ov.classList.contains("is-open")) {
+      if (k === "Escape" || k === "o" || k === "O") { e.preventDefault(); closeOv(); }
+      return;
+    }
+    switch (k) {
+      case "ArrowRight": case " ": case "PageDown": case "j":
+        e.preventDefault(); next(); break;
+      case "ArrowLeft": case "PageUp": case "p": case "k":
+        e.preventDefault(); prev(); break;
+      case "Home": e.preventDefault(); go(0); break;
+      case "End":  e.preventDefault(); go(slides.length - 1); break;
+      case "o": case "O": e.preventDefault(); openOv(); break;
+      case "n": case "N": e.preventDefault(); toggleNotes(); break;
+      case "c": case "C": e.preventDefault(); toggleChrome(); break;
+      default: break;
+    }
+  });
+
+  window.addEventListener("hashchange", function () {
+    var n = parseInt(window.location.hash.replace("#", ""), 10);
+    if (!isNaN(n) && n >= 1 && n <= slides.length && n - 1 !== current) { go(n - 1, true); }
+  });
+
+  var start = parseInt(window.location.hash.replace("#", ""), 10);
+  go(!isNaN(start) && start >= 1 ? start - 1 : 0, true);
+})();
+</script>
