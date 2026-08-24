@@ -1,0 +1,1389 @@
+<title>Runtime Configuration, Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+/* ─── TOKENS · light is bare :root; dark redefines tokens only ─── */
+:root {
+  --bg:#e8ebee; --surface:#f7f8fa; --surface-2:#e2e6ea;
+  --fg:#14181e; --fg-2:#49525f; --fg-3:#7c8693;
+  --rule:#c7ccd4; --rule-soft:#d8dce2;
+  --accent:#b3701a; --accent-bg:#f5e6cd;
+  --kept:#1c6d64;  --kept-bg:#d5e7e4;
+  --drop:#a53f2e;  --drop-bg:#f2dcd7;
+  /* demo slides commit to one dark world in both themes */
+  --term-bg:#10151b; --term-panel:#171e26; --term-fg:#e9edf1; --term-fg-2:#98a4b2;
+  --term-rule:#2a333f; --term-accent:#e5a94f; --term-good:#63c0af; --term-bad:#e58a72;
+  --font-display:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --font-body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
+  --pad:clamp(1.1rem,3.1vmin,2.8rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#0e1218; --surface:#151a22; --surface-2:#1d242e;
+    --fg:#e7eaee; --fg-2:#a4aeba; --fg-3:#6f7986;
+    --rule:#2b333f; --rule-soft:#212932;
+    --accent:#e0a349; --accent-bg:#33281a;
+    --kept:#4fb3a4;  --kept-bg:#17302e;
+    --drop:#e07a63;  --drop-bg:#33211d;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#0e1218; --surface:#151a22; --surface-2:#1d242e;
+  --fg:#e7eaee; --fg-2:#a4aeba; --fg-3:#6f7986;
+  --rule:#2b333f; --rule-soft:#212932;
+  --accent:#e0a349; --accent-bg:#33281a;
+  --kept:#4fb3a4;  --kept-bg:#17302e;
+  --drop:#e07a63;  --drop-bg:#33211d;
+}
+
+/* ─── FRAME ─── */
+* { box-sizing:border-box; }
+html,body { height:100%; }
+body {
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--font-body); font-size:clamp(14px,1.55vmin,19px); line-height:1.5;
+  display:grid; grid-template-rows:auto minmax(0,1fr) auto; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+.rail {
+  display:flex; align-items:center; gap:1rem;
+  padding:0.5rem clamp(0.7rem,2.2vmin,1.6rem);
+  font-family:var(--font-mono); font-size:clamp(9.5px,1.15vmin,12.5px);
+  letter-spacing:0.09em; text-transform:uppercase; color:var(--fg-3);
+  border-bottom:1px solid var(--rule-soft); min-height:2.3rem;
+}
+.rail--bottom { border-bottom:0; border-top:1px solid var(--rule-soft); }
+.rail__spacer { flex:1 1 auto; }
+.rail__section { color:var(--accent); font-weight:600; }
+.ticks { display:flex; gap:3px; align-items:center; }
+.ticks__t {
+  width:clamp(5px,0.85vmin,10px); height:3px; background:var(--rule);
+  border:0; padding:0; cursor:pointer; transition:background 120ms linear,height 120ms linear;
+}
+.ticks__t[data-seen="1"] { background:var(--fg-3); }
+.ticks__t[aria-current="true"] { background:var(--accent); height:7px; }
+.ticks__t:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.navbtn {
+  font-family:var(--font-mono); font-size:inherit; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--fg-2); background:transparent; border:1px solid var(--rule);
+  padding:0.28em 0.7em; cursor:pointer;
+}
+.navbtn:hover { color:var(--fg); border-color:var(--fg-3); }
+.navbtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.counter { font-variant-numeric:tabular-nums; color:var(--fg-2); }
+
+/* ─── SLIDES ─── */
+.deck { position:relative; min-height:0; }
+.slide { position:absolute; inset:0; display:none; overflow-y:auto; overflow-x:hidden; }
+.slide.is-active { display:block; }
+@media (prefers-reduced-motion: no-preference) {
+  .slide.is-active > .stage { animation:rise 250ms cubic-bezier(.2,.7,.3,1) both; }
+}
+@keyframes rise { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+.stage {
+  position:relative; width:min(100%,1250px); min-height:100%; margin-inline:auto;
+  padding:var(--pad) calc(var(--pad) * 1.15);
+  display:flex; flex-direction:column; justify-content:center;
+  gap:clamp(0.55rem,1.5vmin,1.2rem);
+}
+.stage::before, .stage::after {
+  content:""; position:absolute; width:13px; height:13px; pointer-events:none;
+  border-color:var(--rule); opacity:0.9;
+}
+.stage::before { top:calc(var(--pad) * 0.4); left:calc(var(--pad) * 0.4); border-left:1px solid; border-top:1px solid; }
+.stage::after  { bottom:calc(var(--pad) * 0.4); right:calc(var(--pad) * 0.4); border-right:1px solid; border-bottom:1px solid; }
+
+/* ─── TYPE ─── */
+.eyebrow {
+  font-family:var(--font-mono); font-size:clamp(9.5px,1.2vmin,13px);
+  letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); font-weight:500; margin:0;
+}
+h1 { font-family:var(--font-display); font-weight:800; font-size:clamp(2rem,6.1vmin,4.2rem);
+     line-height:0.99; letter-spacing:-0.022em; text-wrap:balance; margin:0; }
+h2 { font-family:var(--font-display); font-weight:700; font-size:clamp(1.3rem,3.5vmin,2.4rem);
+     line-height:1.06; letter-spacing:-0.016em; text-wrap:balance; margin:0; }
+h3 { font-family:var(--font-display); font-weight:600; font-size:clamp(0.98rem,2vmin,1.3rem);
+     line-height:1.15; letter-spacing:-0.008em; margin:0; }
+.lead { font-size:clamp(0.92rem,1.9vmin,1.26rem); color:var(--fg-2); max-width:64ch; margin:0; text-wrap:pretty; }
+.lead strong { color:var(--fg); font-weight:600; }
+p { margin:0; }
+.dim { color:var(--fg-3); }
+.hl { color:var(--accent); font-weight:600; }
+code,.mono { font-family:var(--font-mono); font-size:0.92em; }
+code { background:var(--surface-2); padding:0.08em 0.34em; border-radius:2px; }
+.note { font-family:var(--font-mono); font-size:clamp(9px,1.12vmin,12px); color:var(--fg-3);
+        letter-spacing:0.02em; line-height:1.45; max-width:92ch; }
+.note b { color:var(--fg-2); font-weight:600; }
+/* presenter cues are visible by default; N hides them if you ever need a clean slide */
+body.hide-notes .note:not(.note--always) { display:none; }
+body.no-chrome > .rail { display:none; }
+.navbtn[aria-pressed="true"] { color:var(--accent); border-color:var(--accent); }
+
+/* ─── FIGURES ─── */
+figure { margin:0; display:flex; flex-direction:column; gap:0.45rem; min-width:0; }
+figure svg { display:block; width:100%; max-width:100%; height:auto; max-height:60vh; color:var(--fg); }
+figcaption { font-family:var(--font-mono); font-size:clamp(9px,1.12vmin,12px); color:var(--fg-3);
+             letter-spacing:0.02em; text-wrap:pretty; max-width:90ch; }
+.svgwrap { overflow-x:auto; min-width:0; }
+.s-box  { fill:var(--surface);   stroke:var(--rule);   stroke-width:1.5; }
+.s-box2 { fill:var(--surface-2); stroke:var(--rule);   stroke-width:1.5; }
+.s-none { fill:none;             stroke:var(--rule);   stroke-width:1.5; }
+.s-acc  { fill:var(--accent-bg); stroke:var(--accent); stroke-width:1.75; }
+.s-kept { fill:var(--kept-bg);   stroke:var(--kept);   stroke-width:1.75; }
+.s-drop { fill:var(--drop-bg);   stroke:var(--drop);   stroke-width:1.75; }
+.s-ghost{ fill:none; stroke:var(--rule); stroke-width:1.25; stroke-dasharray:4 4; }
+.s-line { stroke:currentColor; stroke-width:1.5; fill:none; opacity:0.7; }
+.s-lead { stroke:var(--fg-3); stroke-width:1; fill:none; stroke-dasharray:3 3; }
+.s-rule { stroke:var(--rule); stroke-width:1; }
+.s-accl { stroke:var(--accent); stroke-width:1.75; fill:none; }
+.s-keptl{ stroke:var(--kept);   stroke-width:1.75; fill:none; }
+.s-dropl{ stroke:var(--drop);   stroke-width:1.75; fill:none; }
+text { font-family:var(--font-body); fill:currentColor; }
+.t    { font-size:13px; }
+.t-s  { font-size:11px; fill:var(--fg-2); }
+.t-xs { font-size:9.5px; fill:var(--fg-3); letter-spacing:0.07em; text-transform:uppercase; }
+.t-m  { font-family:var(--font-mono); font-size:12px; }
+.t-ms { font-family:var(--font-mono); font-size:10.5px; fill:var(--fg-2); }
+.t-b  { font-weight:600; }
+.t-acc{ fill:var(--accent); }
+.t-kept{ fill:var(--kept); }
+.t-drop{ fill:var(--drop); }
+.t-num{ font-variant-numeric:tabular-nums; }
+
+/* ─── COMPONENTS ─── */
+.cols { display:grid; gap:clamp(0.75rem,2.2vmin,1.9rem); min-width:0; }
+.cols--2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.cols--3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.cols--side { grid-template-columns:minmax(0,0.8fr) minmax(0,1.2fr); align-items:center; }
+.cols--side-r { grid-template-columns:minmax(0,1.2fr) minmax(0,0.8fr); align-items:center; }
+@media (max-width:760px) { .cols--2,.cols--3,.cols--side,.cols--side-r { grid-template-columns:minmax(0,1fr); } }
+.card { background:var(--surface); border:1px solid var(--rule);
+        padding:clamp(0.55rem,1.5vmin,1rem); display:flex; flex-direction:column; gap:0.3rem; min-width:0; }
+.card__k { font-family:var(--font-mono); font-size:clamp(9px,1.08vmin,11.5px);
+           letter-spacing:0.13em; text-transform:uppercase; color:var(--fg-3); }
+.card--acc  { border-color:var(--accent); background:var(--accent-bg); }
+.card--kept { border-color:var(--kept);   background:var(--kept-bg); }
+.card--drop { border-color:var(--drop);   background:var(--drop-bg); }
+.card--acc .card__k  { color:var(--accent); }
+.card--kept .card__k { color:var(--kept); }
+.card--drop .card__k { color:var(--drop); }
+.card p { font-size:clamp(0.8rem,1.55vmin,1rem); color:var(--fg-2); }
+.card strong { color:var(--fg); }
+.list { display:flex; flex-direction:column; gap:0.5rem; margin:0; padding:0; list-style:none; }
+.list li { display:grid; grid-template-columns:auto minmax(0,1fr); gap:0.7rem; align-items:baseline;
+           font-size:clamp(0.84rem,1.7vmin,1.1rem); color:var(--fg-2); }
+.list li strong { color:var(--fg); font-weight:600; }
+.list__m { font-family:var(--font-mono); font-size:0.78em; color:var(--accent);
+           letter-spacing:0.06em; font-variant-numeric:tabular-nums; }
+.code { font-family:var(--font-mono); font-size:clamp(0.64rem,1.38vmin,0.92rem); line-height:1.6;
+        background:var(--surface); border:1px solid var(--rule); padding:clamp(0.5rem,1.4vmin,0.95rem);
+        overflow-x:auto; white-space:pre; color:var(--fg-2); tab-size:2; min-width:0; }
+.code b { color:var(--fg); font-weight:600; }
+.code .c { color:var(--fg-3); }
+.code .k { color:var(--accent); font-weight:600; }
+.code .kk{ color:var(--kept); font-weight:600; }
+.code .dd{ color:var(--drop); font-weight:600; }
+
+/* ─── DEMO SLIDES ─── */
+.slide--demo { background:var(--term-bg); color:var(--term-fg); }
+.slide--demo .stage::before, .slide--demo .stage::after { border-color:var(--term-rule); }
+.slide--demo h2, .slide--demo h3 { color:var(--term-fg); }
+.slide--demo .eyebrow { color:var(--term-accent); }
+.slide--demo .lead { color:var(--term-fg-2); }
+.slide--demo .lead strong { color:var(--term-fg); }
+.slide--demo .note { color:var(--term-fg-2); }
+.slide--demo .note b { color:var(--term-fg); }
+.demo-badge { display:inline-flex; align-items:center; gap:0.5rem; font-family:var(--font-mono);
+  font-size:clamp(9.5px,1.2vmin,13px); letter-spacing:0.16em; text-transform:uppercase;
+  color:var(--term-bg); background:var(--term-accent); padding:0.25em 0.7em; font-weight:600; align-self:flex-start; }
+.term { font-family:var(--font-mono); font-size:clamp(0.66rem,1.42vmin,0.95rem); line-height:1.68;
+  background:var(--term-panel); border:1px solid var(--term-rule); border-left:3px solid var(--term-accent);
+  padding:clamp(0.5rem,1.5vmin,1rem); overflow-x:auto; white-space:pre; color:var(--term-fg); min-width:0; }
+.term .p { color:var(--term-accent); user-select:none; }
+.term .c { color:var(--term-fg-2); }
+.term .g { color:var(--term-good); }
+.term .b { color:var(--term-bad); }
+.term--out { border-left-color:var(--term-rule); color:var(--term-fg-2); }
+.beats { display:flex; flex-direction:column; gap:clamp(0.45rem,1.3vmin,0.85rem); }
+.beat { display:grid; grid-template-columns:auto minmax(0,1fr); gap:0.75rem; align-items:start; }
+.beat__n { font-family:var(--font-mono); font-weight:600; font-variant-numeric:tabular-nums;
+  color:var(--term-accent); border:1px solid var(--term-accent); width:1.9em; height:1.9em;
+  display:grid; place-items:center; font-size:clamp(0.7rem,1.45vmin,0.92rem); }
+.beat__t { font-size:clamp(0.78rem,1.55vmin,1.02rem); color:var(--term-fg); }
+.beat__t em { color:var(--term-fg-2); font-style:normal; }
+
+/* ─── TITLE / SECTION ─── */
+.title-meta { display:flex; flex-wrap:wrap; gap:0.4rem 1.6rem; font-family:var(--font-mono);
+  font-size:clamp(9.5px,1.2vmin,12.5px); letter-spacing:0.11em; text-transform:uppercase;
+  color:var(--fg-3); border-top:1px solid var(--rule); padding-top:0.75rem; }
+.title-meta b { color:var(--fg-2); font-weight:500; }
+.sect { display:grid; grid-template-columns:auto minmax(0,1fr); gap:clamp(1rem,3vmin,2.5rem); align-items:center; }
+.sect__n { font-family:var(--font-display); font-weight:800; font-size:clamp(3.2rem,14vmin,10rem);
+  line-height:0.8; color:var(--accent); font-variant-numeric:tabular-nums; letter-spacing:-0.04em; }
+.sect__body { display:flex; flex-direction:column; gap:0.6rem; border-left:1px solid var(--rule);
+  padding-left:clamp(0.9rem,2.8vmin,2rem); }
+
+/* ─── OVERVIEW ─── */
+.ov { position:fixed; inset:0; background:var(--bg); z-index:50; padding:clamp(1rem,3vmin,2.4rem);
+      overflow-y:auto; display:none; }
+.ov.is-open { display:block; }
+.ov__grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:0.45rem; margin-top:1.1rem; }
+.ov__i { text-align:left; background:var(--surface); border:1px solid var(--rule); color:var(--fg-2);
+  font:inherit; padding:0.45rem 0.6rem; cursor:pointer; display:grid;
+  grid-template-columns:auto minmax(0,1fr); gap:0.5rem; align-items:baseline; }
+.ov__i:hover { border-color:var(--accent); color:var(--fg); }
+.ov__i[aria-current="true"] { border-color:var(--accent); background:var(--accent-bg); color:var(--fg); }
+.ov__i .n { font-family:var(--font-mono); font-size:0.78em; color:var(--fg-3); font-variant-numeric:tabular-nums; }
+.ov__i .s { font-size:0.9em; }
+.ov__i:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.kbd { font-family:var(--font-mono); font-size:0.85em; border:1px solid var(--rule);
+       padding:0.1em 0.4em; color:var(--fg-2); background:var(--surface); }
+</style>
+
+<header class="rail">
+  <span>Container Series &nbsp;·&nbsp; Talk 02</span>
+  <span class="rail__spacer"></span>
+  <span class="rail__section" id="sectionLabel">Runtime Configuration</span>
+</header>
+
+<main class="deck" id="deck">
+<!-- ════════ 1 · TITLE ════════ -->
+<section class="slide slide--title is-active" data-section="Runtime Configuration" data-title="Title">
+  <div class="stage">
+    <p class="eyebrow">Container Series · Talk 02 of 15</p>
+    <h1>Runtime configuration</h1>
+    <p class="lead">The image should be boring: build it once, and let it move through development, test and production unchanged. Everything that <strong>varies by environment</strong> — hosts, secrets, storage, network shape, how much CPU it is allowed — is supplied when the container starts, not baked into the artefact. This talk is that boundary, worked through eight times.</p>
+    <div class="title-meta">
+      <span>Language <b>Python · Flask</b></span>
+      <span>Runtime <b>60 minutes, 8 live demos</b></span>
+      <span>Next <b>Talk 03 — OCI artifacts &amp; registries</b></span>
+    </div>
+    <p class="note note--always"><b>Navigating:</b> <span class="kbd">→</span> <span class="kbd">space</span> next · <span class="kbd">←</span> back · <span class="kbd">O</span> slide index · <span class="kbd">Home</span>/<span class="kbd">End</span> jump. The URL tracks the slide, so a reload lands you back where you were.<br><b>Presenting:</b> <span class="kbd">N</span> hides the grey speaker cues if you ever want a clean slide · <span class="kbd">C</span> hides the top and bottom bars.</p>
+  </div>
+</section>
+
+<!-- ════════ 2 · ROADMAP ════════ -->
+<section class="slide" data-section="Runtime Configuration" data-title="The route">
+  <div class="stage">
+    <p class="eyebrow">The route</p>
+    <h2>Eight runtime knobs, one image underneath all of them</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 262" role="img" aria-label="Eight sections of the talk laid out as a sequence, each with a live demo, grouped into getting configuration in, making the container operable, and a bonus on Podman.">
+        <line class="s-rule" x1="20" y1="128" x2="720" y2="128"></line>
+        <text class="t-xs" x="20" y="26">Getting config in</text>
+        <text class="t-xs" x="309" y="26">Making it operable</text>
+        <text class="t-xs" x="669" y="26">Bonus</text>
+        <line class="s-rule" x1="20" y1="34" x2="285" y2="34"></line>
+        <line class="s-rule" x1="309" y1="34" x2="645" y2="34"></line>
+        <line class="s-rule" x1="669" y1="34" x2="720" y2="34"></line>
+
+        <g>
+          <circle class="s-acc" cx="45" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="45" y="133" text-anchor="middle">1</text>
+          <text class="t-s" x="45" y="166" text-anchor="middle">Config outside</text>
+          <text class="t-s" x="45" y="180" text-anchor="middle">the image</text>
+
+          <circle class="s-acc" cx="141" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="141" y="133" text-anchor="middle">2</text>
+          <text class="t-s" x="141" y="166" text-anchor="middle">Inline vs</text>
+          <text class="t-s" x="141" y="180" text-anchor="middle">env file</text>
+
+          <circle class="s-acc" cx="237" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="237" y="133" text-anchor="middle">3</text>
+          <text class="t-s" x="237" y="166" text-anchor="middle">Build</text>
+          <text class="t-s" x="237" y="180" text-anchor="middle">secrets</text>
+
+          <circle class="s-acc" cx="333" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="333" y="133" text-anchor="middle">4</text>
+          <text class="t-s" x="333" y="166" text-anchor="middle">Networking</text>
+          <text class="t-s" x="333" y="180" text-anchor="middle">modes</text>
+
+          <circle class="s-acc" cx="429" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="429" y="133" text-anchor="middle">5</text>
+          <text class="t-s" x="429" y="166" text-anchor="middle">Storage</text>
+          <text class="t-s" x="429" y="180" text-anchor="middle">choices</text>
+
+          <circle class="s-acc" cx="525" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="525" y="133" text-anchor="middle">6</text>
+          <text class="t-s" x="525" y="166" text-anchor="middle">Health &amp;</text>
+          <text class="t-s" x="525" y="180" text-anchor="middle">restart</text>
+
+          <circle class="s-acc" cx="621" cy="128" r="17"></circle>
+          <text class="t-m t-b t-acc" x="621" y="133" text-anchor="middle">7</text>
+          <text class="t-s" x="621" y="166" text-anchor="middle">Resource</text>
+          <text class="t-s" x="621" y="180" text-anchor="middle">limits</text>
+
+          <circle class="s-kept" cx="705" cy="128" r="15"></circle>
+          <text class="t-ms t-b t-kept" x="705" y="132" text-anchor="middle">8</text>
+          <text class="t-s t-kept" x="705" y="166" text-anchor="middle">Podman</text>
+        </g>
+
+        <g>
+          <rect class="s-acc" x="27" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-acc" x="45" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="45" y1="93" x2="45" y2="111"></line>
+
+          <rect class="s-acc" x="123" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-acc" x="141" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="141" y1="93" x2="141" y2="111"></line>
+
+          <rect class="s-acc" x="219" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-acc" x="237" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="237" y1="93" x2="237" y2="111"></line>
+
+          <rect class="s-acc" x="315" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-acc" x="333" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="333" y1="93" x2="333" y2="111"></line>
+
+          <rect class="s-acc" x="411" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-acc" x="429" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="429" y1="93" x2="429" y2="111"></line>
+
+          <rect class="s-acc" x="507" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-acc" x="525" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="525" y1="93" x2="525" y2="111"></line>
+
+          <rect class="s-acc" x="603" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-acc" x="621" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="621" y1="93" x2="621" y2="111"></line>
+
+          <rect class="s-kept" x="687" y="76" width="36" height="17"></rect>
+          <text class="t-xs t-kept" x="705" y="88" text-anchor="middle">demo</text>
+          <line class="s-lead" x1="705" y1="93" x2="705" y2="113"></line>
+        </g>
+
+        <text class="t-s t-b" x="20" y="240">The one idea underneath all eight:</text>
+        <text class="t-s" x="228" y="240">the image is a boring, reusable artefact — everything that differs by environment arrives at container start.</text>
+      </svg>
+      <figcaption>Every section gets a live demo, because runtime behaviour is exactly the thing you cannot fully appreciate from a slide.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 3 · §1 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§1 · Config outside the image" data-title="§1 Config outside the image">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">1</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section one</p>
+        <h2>Configuration belongs<br>outside the image</h2>
+        <p class="lead">One Flask image, built once. Everything that changes between your laptop, test, and production — database host, secret key, which environment it thinks it's in — arrives through the container, not the build.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 4 · ONE IMAGE, MANY CONFIGS ════════ -->
+<section class="slide" data-section="§1 · Config outside the image" data-title="One image, many configs">
+  <div class="stage">
+    <p class="eyebrow">The distinction the whole talk rests on</p>
+    <h2>The image never changes. What you inject into it does.</h2>
+    <div class="cols cols--side-r">
+      <div class="svgwrap">
+      <figure>
+        <svg viewBox="0 0 620 300" role="img" aria-label="One read-only Flask image with a config blob, run three times with different environment variables, producing three containers each with a different database host and application environment, all reading the same code.">
+          <text class="t-xs" x="8" y="16">image · read-only · shared</text>
+          <rect class="s-kept" x="8" y="26" width="176" height="22"></rect>
+          <text class="t-ms" x="18" y="41">config (entrypoint, default PORT)</text>
+          <rect class="s-box" x="8" y="52" width="176" height="26"></rect>
+          <text class="t-ms" x="18" y="69">layer · Flask app</text>
+          <rect class="s-box" x="8" y="82" width="176" height="26"></rect>
+          <text class="t-ms" x="18" y="99">layer · Python runtime</text>
+          <rect class="s-box2" x="8" y="112" width="176" height="26"></rect>
+          <text class="t-ms" x="18" y="129">layer · base OS files</text>
+          <text class="t-ms t-kept" x="8" y="156">talk-02-runtime-config:latest</text>
+          <text class="t-ms" x="8" y="172">built once — nothing below changes</text>
+
+          <line class="s-accl" x1="196" y1="90" x2="268" y2="90" marker-end="url(#t2ar1)"></line>
+          <text class="t-ms t-acc" x="232" y="80" text-anchor="middle">docker run</text>
+          <text class="t-ms t-acc" x="232" y="108" text-anchor="middle">× 3</text>
+
+          <text class="t-xs" x="284" y="16">containers · same code, different facts</text>
+          <g>
+            <rect class="s-acc" x="284" y="26" width="100" height="24"></rect>
+            <text class="t-ms" x="292" y="42">-e APP_ENV=</text>
+            <rect class="s-ghost" x="284" y="54" width="100" height="46"></rect>
+            <text class="t-ms" x="334" y="80" text-anchor="middle">same image</text>
+            <rect class="s-box2" x="284" y="104" width="100" height="46"></rect>
+            <text class="t-ms t-b" x="292" y="122">development</text>
+            <text class="t-ms" x="292" y="140">DB_HOST=localhost</text>
+
+            <rect class="s-acc" x="396" y="26" width="100" height="24"></rect>
+            <text class="t-ms" x="404" y="42">-e APP_ENV=</text>
+            <rect class="s-ghost" x="396" y="54" width="100" height="46"></rect>
+            <text class="t-ms" x="446" y="80" text-anchor="middle">same image</text>
+            <rect class="s-box2" x="396" y="104" width="100" height="46"></rect>
+            <text class="t-ms t-b" x="404" y="122">test</text>
+            <text class="t-ms" x="404" y="140">DB_HOST=test-db</text>
+
+            <rect class="s-acc" x="508" y="26" width="100" height="24"></rect>
+            <text class="t-ms" x="516" y="42">-e APP_ENV=</text>
+            <rect class="s-ghost" x="508" y="54" width="100" height="46"></rect>
+            <text class="t-ms" x="558" y="80" text-anchor="middle">same image</text>
+            <rect class="s-box2" x="508" y="104" width="100" height="46"></rect>
+            <text class="t-ms t-b" x="516" y="122">production</text>
+            <text class="t-ms" x="516" y="140">DB_HOST=prod-db.internal</text>
+          </g>
+          <line class="s-rule" x1="284" y1="160" x2="608" y2="160"></line>
+          <text class="t-ms" x="284" y="178">different secrets · different hosts · same /health, /config code path</text>
+
+          <line class="s-rule" x1="8" y1="228" x2="608" y2="228"></line>
+          <text class="t-s t-b" x="8" y="250">Changed the Dockerfile?</text>
+          <text class="t-s" x="152" y="250">rebuild the image — every environment picks it up on next deploy.</text>
+          <text class="t-s t-b" x="8" y="270">Changed DB_HOST for test?</text>
+          <text class="t-s" x="188" y="270">recreate the container — no rebuild, no re-scan, no re-sign.</text>
+
+          <defs>
+            <marker id="t2ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M0,1 L9,5 L0,9 z" fill="var(--accent)"></path>
+            </marker>
+          </defs>
+        </svg>
+        <figcaption>Three containers, one image on disk. The only things that differ are the facts handed in at `docker run` — which is exactly the 12-factor promise.</figcaption>
+      </figure>
+      </div>
+      <div class="cols" style="gap:0.7rem">
+        <div class="card card--kept">
+          <span class="card__k">The Flask app</span>
+          <p>Reads <code>DB_HOST</code>, <code>DB_PORT</code>, <code>DB_NAME</code>, <code>DB_USER</code>, <code>APP_SECRET_KEY</code> and <code>APP_ENV</code> from the environment at request time — never from a config file baked into the image.</p>
+        </div>
+        <div class="card card--acc">
+          <span class="card__k">The deliberate detail</span>
+          <p><code>/config</code> reports every value <strong>except</strong> the secret key — it returns <code>app_secret_key_configured: true</code> instead. Configured, never echoed.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 5 · DOCKERFILE DEFAULTS VS DEPLOYMENT CONFIG ════════ -->
+<section class="slide" data-section="§1 · Config outside the image" data-title="Defaults vs deployment config">
+  <div class="stage">
+    <p class="eyebrow">ENV is for safe defaults, not for facts that vary</p>
+    <h2>A default you can ship. A fact you cannot.</h2>
+    <div class="cols cols--2">
+      <div class="code"><span class="c"># Dockerfile — safe, boring, the same for everyone</span>
+<b><span class="k">ENV</span></b> PYTHONUNBUFFERED=1 \
+    APP_HOME=/app \
+    <b><span class="k">APP_ENV</span>=production</b> \
+    <b><span class="k">PORT</span>=8000</b>
+
+<span class="c"># none of this is a secret, and none of it needs</span>
+<span class="c"># to differ between two copies of the same image</span></div>
+      <div class="cols" style="gap:0.55rem">
+        <div class="card card--kept">
+          <span class="card__k">Safe as an image default</span>
+          <p><code>PYTHONUNBUFFERED</code>, <code>PORT</code>, a fallback <code>APP_ENV</code> — values every deployment agrees on, or values it's fine to override.</p>
+        </div>
+        <div class="card card--drop">
+          <span class="card__k">Never a safe image default</span>
+          <p><code>DB_HOST</code>, <code>DB_NAME</code>, <code>DB_USER</code>, and above all <code>APP_SECRET_KEY</code> — these differ by environment and must arrive at <code>docker run</code>, not <code>docker build</code>.</p>
+        </div>
+        <div class="card">
+          <span class="card__k">The rule</span>
+          <p><strong>ENV is useful for defaults. It is not a vault.</strong> Anything written into the image config is visible to anyone who can pull the image or read <code>docker inspect</code>.</p>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> ask the room to name one value in their own services that is currently a build-time default but should really be runtime-only. There is usually at least one.</p>
+  </div>
+</section>
+
+<!-- ════════ 6 · DEMO 1 ════════ -->
+<section class="slide slide--demo" data-section="§1 · Config outside the image" data-title="DEMO · Build once, configure at run">
+  <div class="stage">
+    <span class="demo-badge">Demo 1 · four beats</span>
+    <h2>Build the image once. Configure it at the door.</h2>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat__n">1</div>
+        <div>
+          <p class="beat__t">Build with no certificate and no secret. It succeeds — the corporate CA hook is present but idle on a normal laptop.</p>
+          <div class="term"><span class="p">$</span> DOCKER_BUILDKIT=1 docker build -t talk-02-runtime-config .
+<span class="g">=&gt; exporting to image
+=&gt; naming to docker.io/library/talk-02-runtime-config</span>          <span class="c">DONE</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">2</div>
+        <div>
+          <p class="beat__t">Run it once, with a full set of inline <code>-e</code> flags for a development-shaped container.</p>
+          <div class="term"><span class="p">$</span> docker run -d --rm --name runtime-inline -p 8000:8000 \
+    -e DB_HOST=host.docker.internal -e DB_PORT=5432 -e DB_NAME=myapp \
+    -e DB_USER=myuser -e APP_SECRET_KEY=runtime-secret -e APP_ENV=development \
+    talk-02-runtime-config</div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">3</div>
+        <div>
+          <p class="beat__t"><code>/health</code> reports every required variable present; <code>/config</code> proves the secret is configured without ever printing it.</p>
+          <div class="term"><span class="p">$</span> curl http://localhost:8000/health
+<span class="g">{"status": "ok", "missing": [], "environment": "development"}</span>
+
+<span class="p">$</span> curl http://localhost:8000/config
+<span class="g">{"db_host": "host.docker.internal", "db_port": 5432, "db_name": "myapp",
+ "db_user": "myuser", "app_env": "development",
+ "app_secret_key_configured": </span><span class="g" style="font-weight:600">true</span><span class="g">}</span>
+<span class="c">                                       ↑ configured, never echoed</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">4</div>
+        <div>
+          <p class="beat__t">Stop it. The image is untouched by anything that just happened.</p>
+          <div class="term"><span class="p">$</span> docker stop runtime-inline</div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> narrate beat 2 out loud as you type it — every <b>-e</b> is a fact the image did not know at build time. That is the whole section, made concrete.</p>
+  </div>
+</section>
+
+<!-- ════════ 7 · §2 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§2 · Inline vs env file" data-title="§2 Inline vs env file">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">2</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section two</p>
+        <h2>Same mechanism,<br>two shapes of ergonomics</h2>
+        <p class="lead"><code>-e</code> and <code>--env-file</code> both do the same thing — hand the container facts at start-up. One is explicit and painful at scale; the other is reviewable and reusable.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 8 · INLINE VS ENV FILE ════════ -->
+<section class="slide" data-section="§2 · Inline vs env file" data-title="-e vs --env-file vs .env.example">
+  <div class="stage">
+    <p class="eyebrow">Three related things, easy to conflate</p>
+    <h2>Explicit, maintainable, and safe-to-commit are three different jobs</h2>
+    <div class="cols cols--3">
+      <div class="card">
+        <span class="card__k">Inline · -e</span>
+        <p>One flag per variable, right there in the command. Great for a demo, or one override — <code>docker run -e APP_ENV=development …</code> — but a six-variable command is hard to read and easy to typo.</p>
+      </div>
+      <div class="card card--kept">
+        <span class="card__k">Grouped · --env-file</span>
+        <p>All the variables live in one reviewable file: <code>docker run --env-file .env …</code>. Easier to diff, easier to reuse across a team, and it is what a real deployment actually looks like.</p>
+      </div>
+      <div class="card card--acc">
+        <span class="card__k">Sample vs real · .env.example / .env</span>
+        <p><code>.env.example</code> is safe sample configuration, committed to the repo. The real <code>.env</code> — with an actual secret key — stays local and <strong>gitignored</strong>, never committed.</p>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> this is a good moment to ask who in the room has a <b>.env</b> sitting in a repo right now. It happens even to careful teams, and it's why <b>.env.example</b> exists as the pattern to copy from, not from a real file.</p>
+  </div>
+</section>
+
+<!-- ════════ 9 · DEMO 2 ════════ -->
+<section class="slide slide--demo" data-section="§2 · Inline vs env file" data-title="DEMO · --env-file and /items">
+  <div class="stage">
+    <span class="demo-badge">Demo 2</span>
+    <h2>The maintainable version, exercised against a real endpoint</h2>
+    <div class="term"><span class="p">$</span> docker run -d --rm --name runtime-env-file -p 8000:8000 --env-file .env talk-02-runtime-config
+
+<span class="p">$</span> curl http://localhost:8000/items
+<span class="g">{"items": [
+  {"id": 1, "name": "container-basics", "description": "Recap from Talk 1"},
+  {"id": 2, "name": "runtime-config", "description": "Configuration is injected at runtime"}
+ ], "count": 2, "database_target": "postgresql://myuser@localhost:5432/myapp"}</span>
+
+<span class="p">$</span> curl -X POST http://localhost:8000/items \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"demo item","description":"created during the talk"}'
+<span class="g">{"id": 3, "name": "demo item", "description": "created during the talk"}</span></div>
+    <p class="note"><b>Cue ·</b> point at <b>database_target</b> in the GET response — it's built entirely from env-file values, and swapping <b>.env</b> for a different file is the entire migration story between environments. No code change, no rebuild.</p>
+  </div>
+</section>
+
+<!-- ════════ 10 · §3 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§3 · Build secrets" data-title="§3 Build secrets">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">3</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section three</p>
+        <h2>ARG is metadata.<br>--secret is scoped. Neither is a vault.</h2>
+        <p class="lead">A BuildKit secret mount keeps a credential out of every layer — but it only solves the problem of the <em>build</em> needing access to something. The running container still needs its own, separate delivery.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 11 · ARG / ENV / --secret ════════ -->
+<section class="slide" data-section="§3 · Build secrets" data-title="ARG, ENV, --secret, and runtime delivery">
+  <div class="stage">
+    <p class="eyebrow">Follow APP_VERSION and a build secret across the same boundary</p>
+    <h2>What crosses into the image, and what a build secret never solves</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 760 320" role="img" aria-label="A timeline from build time through the image to run time. Build arg APP_VERSION enters at build and is promoted into an env var that reaches the process. A build secret enters for one RUN step and exits before any layer is committed. A separate runtime secret, delivered by docker run with an env file, reaches the process directly at run time without ever touching the image.">
+        <rect class="s-box" x="8" y="46" width="238" height="198"></rect>
+        <text class="t-xs" x="20" y="66">build time · docker build</text>
+        <rect class="s-kept" x="278" y="46" width="180" height="198"></rect>
+        <text class="t-xs t-kept" x="290" y="66">the image · immutable</text>
+        <rect class="s-box" x="490" y="46" width="262" height="198"></rect>
+        <text class="t-xs" x="502" y="66">run time · docker run</text>
+
+        <line class="s-rule" x1="262" y1="34" x2="262" y2="252" stroke-dasharray="4 4"></line>
+        <line class="s-rule" x1="474" y1="34" x2="474" y2="252" stroke-dasharray="4 4"></line>
+
+        <text class="t-m t-b t-acc" x="20" y="94">ARG</text>
+        <text class="t-ms" x="20" y="110">--build-arg APP_VERSION=1.0.0</text>
+        <line class="s-accl" x1="20" y1="118" x2="274" y2="118" marker-end="url(#t2ar2a)"></line>
+        <text class="t-ms" x="290" y="94">ENV APP_VERSION=${APP_VERSION}</text>
+        <text class="t-ms t-kept" x="290" y="114">promoted, so it survives</text>
+        <line class="s-keptl" x1="290" y1="122" x2="486" y2="122" marker-end="url(#t2ar2k)"></line>
+        <rect class="s-box2" x="502" y="90" width="238" height="40"></rect>
+        <text class="t-ms" x="512" y="108">the process reads</text>
+        <text class="t-m t-b" x="512" y="124">APP_VERSION = 1.0.0</text>
+
+        <text class="t-m t-b t-drop" x="20" y="152">--secret id=mysecret</text>
+        <text class="t-ms" x="20" y="168">used inside ONE RUN, then deleted</text>
+        <path class="s-dropl" d="M20 176 L150 176 L150 202 L20 202" stroke-dasharray="4 3" marker-end="url(#t2ar2d)"></path>
+        <text class="t-ms t-drop" x="20" y="220">in, used, gone. Never crosses.</text>
+
+        <text class="t-m t-b t-acc" x="502" y="152">docker run --env-file .env</text>
+        <text class="t-ms" x="502" y="168">a DIFFERENT, runtime-only secret</text>
+        <line class="s-accl" x1="502" y1="176" x2="700" y2="176"></line>
+        <path class="s-accl" d="M700 176 L700 140" marker-end="url(#t2ar2a)"></path>
+        <text class="t-ms t-acc" x="502" y="194">delivered straight to the process — no build involved</text>
+
+        <rect class="s-drop" x="8" y="264" width="744" height="44"></rect>
+        <text class="t-s t-b" x="20" y="284">A build secret only answers "can the builder reach a private feed?"</text>
+        <text class="t-s" x="20" y="300">The running container's own secrets still need runtime delivery — from -e, --env-file, or an orchestrator's secret store.</text>
+
+        <defs>
+          <marker id="t2ar2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--accent)"></path>
+          </marker>
+          <marker id="t2ar2k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path>
+          </marker>
+          <marker id="t2ar2d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="var(--drop)"></path>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>This Dockerfile's `mysecret` mount is a teaching prop: it writes the secret to a temp file and removes it inside the same RUN, so it never becomes a layer — but that machinery has nothing to do with how the running Flask app gets its own `APP_SECRET_KEY`.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Expert aside ·</b> BuildKit <code>--mount=type=secret</code> does not copy the secret into the build context or commit it to a layer. The risk returns only if the build step itself writes the secret to the filesystem, logs it, or bakes it into a generated artefact.</p>
+  </div>
+</section>
+
+<!-- ════════ 12 · DEMO 3 ════════ -->
+<section class="slide slide--demo" data-section="§3 · Build secrets" data-title="DEMO · Build secret, then prove it's clean">
+  <div class="stage">
+    <span class="demo-badge">Demo 3 · two beats</span>
+    <h2>Mount a build secret, then check it never became a layer</h2>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat__n">1</div>
+        <div>
+          <p class="beat__t">Rebuild with a BuildKit secret supplying <code>secret.txt</code> to the one RUN step that asks for it.</p>
+          <div class="term"><span class="p">$</span> DOCKER_BUILDKIT=1 docker build --secret id=mysecret,src=secret.txt -t talk-02-runtime-config .
+<span class="g">=&gt; [6/8] RUN --mount=type=secret,id=mysecret,required=false …</span>   <span class="c">DONE</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">2</div>
+        <div>
+          <p class="beat__t">Inspect the full, untruncated history. The secret's contents appear nowhere.</p>
+          <div class="term"><span class="p">$</span> docker history --no-trunc talk-02-runtime-config | head
+<span class="c">CREATED BY                                                          SIZE
+CMD ["gunicorn" "--chdir" "src" …]                                   0B
+HEALTHCHECK &amp;{["CMD-SHELL" "curl --fail --silent …"] "30s" …}        0B
+EXPOSE map[8000/tcp:{}]                                              0B
+USER appuser                                                         0B
+RUN useradd --create-home … &amp;&amp; chown -R appuser:appuser /app        1.1kB
+COPY src ./src                                                       20.4kB
+RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span><span class="g">0B</span><span class="c">
+                                       ↑ no "super-secret-api-key" anywhere in this output</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> the Dockerfile's own comment is honest about this being a demo pattern — <b>cat /run/secrets/mysecret &gt; /tmp/secret_used.txt &amp;&amp; rm -f /tmp/secret_used.txt</b> inside one RUN. It's contrived on purpose, so the mechanism is unmistakable. <b>required=false</b> means the build also succeeds cleanly with no <b>--secret</b> at all — try it, and it just prints "No build secret supplied".</p>
+  </div>
+</section>
+
+<!-- ════════ 13 · §4 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§4 · Networking modes" data-title="§4 Networking modes">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">4</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section four</p>
+        <h2>A container always gets<br>its own network namespace</h2>
+        <p class="lead">What changes across bridge, user-defined bridge, host, and none is not whether there is a boundary — it's what that boundary lets the container see.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 14 · NETWORK TOPOLOGY ════════ -->
+<section class="slide" data-section="§4 · Networking modes" data-title="Four modes, compared">
+  <div class="stage">
+    <p class="eyebrow">The mode you pick decides what "localhost" and a container's name even mean</p>
+    <h2>Only one of these four gives you DNS by name</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 268" role="img" aria-label="Four networking modes compared. Default bridge gives each container its own isolated network with no name resolution between unrelated containers. A user-defined bridge adds Docker's embedded DNS so container names resolve. Host networking shares the host's network namespace directly on native Linux but is mediated by a VM on Docker Desktop. None mode has no interface beyond loopback.">
+        <text class="t-xs" x="8" y="16">default bridge</text>
+        <rect class="s-box2" x="8" y="26" width="170" height="30"></rect>
+        <text class="t-ms" x="18" y="46">no --network flag</text>
+        <rect class="s-box" x="8" y="64" width="170" height="60"></rect>
+        <text class="t-ms" x="18" y="82">own IP, own namespace</text>
+        <text class="t-ms" x="18" y="98">reaches the internet fine</text>
+        <text class="t-ms t-drop" x="18" y="114">no name-based lookup</text>
+        <text class="t-s" x="18" y="146">between unrelated</text>
+        <text class="t-s" x="18" y="162">containers</text>
+
+        <text class="t-xs t-kept" x="196" y="16">user-defined bridge</text>
+        <rect class="s-kept" x="196" y="26" width="170" height="30"></rect>
+        <text class="t-ms" x="206" y="46">docker network create</text>
+        <rect class="s-kept" x="196" y="64" width="170" height="60"></rect>
+        <text class="t-ms t-b" x="206" y="82">embedded DNS</text>
+        <text class="t-ms" x="206" y="98">container names resolve</text>
+        <text class="t-ms" x="206" y="114">e.g. ping runtime-api</text>
+        <text class="t-s t-b t-kept" x="196" y="146">the normal local</text>
+        <text class="t-s t-b t-kept" x="196" y="162">multi-container pattern</text>
+
+        <text class="t-xs" x="384" y="16">host (--network=host)</text>
+        <rect class="s-acc" x="384" y="26" width="170" height="30"></rect>
+        <text class="t-ms" x="394" y="46">shares host netns</text>
+        <rect class="s-box" x="384" y="64" width="170" height="60"></rect>
+        <text class="t-ms" x="394" y="82">direct, on native Linux</text>
+        <text class="t-ms t-acc" x="394" y="98">Docker Desktop: mediated</text>
+        <text class="t-ms t-acc" x="394" y="114">by a VM — behaves differently</text>
+        <text class="t-s" x="384" y="146">a platform caveat,</text>
+        <text class="t-s" x="384" y="162">not a bug</text>
+
+        <text class="t-xs t-drop" x="572" y="16">none (--network=none)</text>
+        <rect class="s-drop" x="572" y="26" width="164" height="30"></rect>
+        <text class="t-ms" x="582" y="46">no interface but loopback</text>
+        <rect class="s-box" x="572" y="64" width="164" height="60"></rect>
+        <text class="t-ms" x="582" y="82">process still runs</text>
+        <text class="t-ms t-drop" x="582" y="98">every network call</text>
+        <text class="t-ms t-drop" x="582" y="114">fails immediately</text>
+        <text class="t-s" x="572" y="146">the isolation</text>
+        <text class="t-s" x="572" y="162">extreme</text>
+
+        <line class="s-rule" x1="8" y1="188" x2="736" y2="188"></line>
+        <text class="t-s t-b" x="8" y="212">Every mode above still creates a network namespace for the container.</text>
+        <text class="t-s" x="8" y="232">The BusyBox ping in the demo isn't about ICMP — it's proof that Docker's embedded DNS resolved a name to an address.</text>
+      </svg>
+      <figcaption>Docker Desktop's VM is the detail that trips people up in incidents: `--network=host` on a shared Linux server and on a developer's Mac are not the same guarantee.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 15 · DEMO 4 ════════ -->
+<section class="slide slide--demo" data-section="§4 · Networking modes" data-title="DEMO · Bridge, host, none">
+  <div class="stage">
+    <span class="demo-badge">Demo 4 · three beats</span>
+    <h2>Prove name-based discovery, then show the two boundary cases</h2>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat__n">1</div>
+        <div>
+          <p class="beat__t">A user-defined bridge, and a BusyBox container that finds the API by name alone.</p>
+          <div class="term"><span class="p">$</span> docker network create mynetwork
+<span class="p">$</span> docker run -d --rm --name runtime-api --network mynetwork --env-file .env -p 8000:8000 talk-02-runtime-config
+<span class="p">$</span> docker run --rm --network mynetwork busybox:1.36 ping -c 1 runtime-api
+<span class="g">PING runtime-api (172.19.0.2): 56 data bytes
+64 bytes from 172.19.0.2: seq=0 ttl=64 time=0.087 ms</span>
+<span class="c">                          ↑ resolved by name — Docker's embedded DNS, not /etc/hosts</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">2</div>
+        <div>
+          <p class="beat__t">Host networking — call out the Docker Desktop VM caveat as you run it.</p>
+          <div class="term"><span class="p">$</span> docker run -d --rm --name host-network-demo --network=host --env-file .env talk-02-runtime-config
+<span class="c">                          ↑ on Docker Desktop, mediated by the VM; on native Linux, direct</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">3</div>
+        <div>
+          <p class="beat__t"><code>--network=none</code> — the process starts, and network assumptions surface immediately in the logs.</p>
+          <div class="term"><span class="p">$</span> docker run -d --rm --name no-network-demo --network=none --env-file .env talk-02-runtime-config
+<span class="p">$</span> docker logs no-network-demo | tail -n 5
+<span class="b">[gunicorn] worker booted — listening on 0.0.0.0:8000 (no route beyond loopback)</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> tear the network down after beat 1 — <b>docker stop runtime-api; docker network rm mynetwork</b> — before moving to host/none so the port isn't double-bound.</p>
+  </div>
+</section>
+
+<!-- ════════ 16 · §5 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§5 · Storage choices" data-title="§5 Storage choices">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">5</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section five</p>
+        <h2>Three ways to keep a file,<br>with three different owners</h2>
+        <p class="lead">Bind mount, named volume, and tmpfs all show up as an ordinary path inside the container. Their ownership, backup story, and lifecycle are not remotely the same thing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 17 · STORAGE LIFECYCLE ════════ -->
+<section class="slide" data-section="§5 · Storage choices" data-title="Bind mount, volume, tmpfs">
+  <div class="stage">
+    <p class="eyebrow">Same-looking path, three different lifecycles</p>
+    <h2>Ask "who owns this, and when does it disappear?"</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 260" role="img" aria-label="Three storage options compared. A bind mount exposes a specific host path, transparent but coupled to that machine. A named volume is managed by the container engine and survives container replacement. tmpfs is memory-backed scratch space that never touches the writable layer and disappears when the container stops.">
+        <text class="t-xs" x="8" y="16">bind mount</text>
+        <rect class="s-box" x="8" y="26" width="228" height="30"></rect>
+        <text class="t-ms" x="18" y="46">-v $(pwd)/data:/app/data</text>
+        <rect class="s-box2" x="8" y="64" width="228" height="94"></rect>
+        <text class="t-s t-b" x="18" y="86">A host path, made visible.</text>
+        <text class="t-ms" x="18" y="108">Transparent — you can find</text>
+        <text class="t-ms" x="18" y="124">the file on disk right now.</text>
+        <text class="t-ms t-drop" x="18" y="144">Coupled to this workstation</text>
+        <text class="t-m t-b" x="18" y="180">owner: the host filesystem</text>
+
+        <text class="t-xs t-kept" x="256" y="16">named volume</text>
+        <rect class="s-kept" x="256" y="26" width="228" height="30"></rect>
+        <text class="t-ms" x="266" y="46">-v mydata:/app/data</text>
+        <rect class="s-box2" x="256" y="64" width="228" height="94"></rect>
+        <text class="t-s t-b" x="266" y="86">Docker-managed persistence.</text>
+        <text class="t-ms" x="266" y="108">Survives container replacement</text>
+        <text class="t-ms" x="266" y="124">with no host path to remember.</text>
+        <text class="t-ms t-kept" x="266" y="144">Portable between containers</text>
+        <text class="t-m t-b" x="256" y="180">owner: the container engine</text>
+
+        <text class="t-xs t-acc" x="504" y="16">tmpfs</text>
+        <rect class="s-acc" x="504" y="26" width="228" height="30"></rect>
+        <text class="t-ms" x="514" y="46">--tmpfs /tmp:size=100m</text>
+        <rect class="s-box2" x="504" y="64" width="228" height="94"></rect>
+        <text class="t-s t-b" x="514" y="86">Memory-backed scratch space.</text>
+        <text class="t-ms" x="514" y="108">Fast, and never touches the</text>
+        <text class="t-ms" x="514" y="124">container's writable layer.</text>
+        <text class="t-ms t-acc" x="514" y="144">Gone the instant it stops</text>
+        <text class="t-m t-b" x="504" y="180">owner: RAM, for this run only</text>
+
+        <line class="s-rule" x1="8" y1="200" x2="732" y2="200"></line>
+        <text class="t-s" x="8" y="224">They look identical from inside the container — a directory you can read and write.</text>
+        <text class="t-s" x="8" y="242">Ownership, backup, portability and security are what actually differ.</text>
+      </svg>
+      <figcaption>Choosing between these is a lifecycle decision, not a syntax preference.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Expert aside ·</b> bind mounts expose a specific host path, named volumes live under the engine's own managed storage, and <code>tmpfs</code> never writes to the container's writable layer at all. Three different backing stores wearing the same <code>-v</code>-shaped syntax.</p>
+  </div>
+</section>
+
+<!-- ════════ 18 · DEMO 5 ════════ -->
+<section class="slide slide--demo" data-section="§5 · Storage choices" data-title="DEMO · Bind, volume, tmpfs">
+  <div class="stage">
+    <span class="demo-badge">Demo 5 · three beats</span>
+    <h2>Write the same kind of file three different ways</h2>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat__n">1</div>
+        <div>
+          <p class="beat__t">Bind mount — the file lands directly on the host.</p>
+          <div class="term"><span class="p">$</span> mkdir -p data
+<span class="p">$</span> docker run --rm --env-file .env -v "$(pwd)/data:/app/data" talk-02-runtime-config \
+    python -c 'from pathlib import Path; Path("/app/data/bind.txt").write_text("bind mount")'
+<span class="p">$</span> cat data/bind.txt
+<span class="g">bind mount</span>   <span class="c">← written straight onto this machine</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">2</div>
+        <div>
+          <p class="beat__t">Named volume — no host path to remember or clean up by hand.</p>
+          <div class="term"><span class="p">$</span> docker volume create mydata
+<span class="p">$</span> docker run --rm --env-file .env -v mydata:/app/data talk-02-runtime-config \
+    python -c 'from pathlib import Path; Path("/app/data/volume.txt").write_text("named volume")'
+<span class="c">                          ↑ lives under Docker's managed storage instead</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">3</div>
+        <div>
+          <p class="beat__t">tmpfs — gone the moment this container exits.</p>
+          <div class="term"><span class="p">$</span> docker run --rm --env-file .env --tmpfs /tmp:size=100m talk-02-runtime-config \
+    python -c 'from pathlib import Path; Path("/tmp/tmpfs.txt").write_text("tmpfs")'
+<span class="c">                          ↑ never touched disk; already gone now the container has stopped</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> after beat 3, try to <b>cat</b> the tmpfs file from a fresh container mounting the same path — there is nothing there. That absence is the entire point, made visible.</p>
+  </div>
+</section>
+
+<!-- ════════ 19 · §6 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§6 · Health & restart" data-title="§6 Health &amp; restart">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">6</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section six</p>
+        <h2>"Running" and "ready"<br>are different claims</h2>
+        <p class="lead">A PID existing tells you almost nothing about whether the application can serve useful traffic. <code>HEALTHCHECK</code> is how the container engine tells the two apart.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 20 · HEALTH CHECK STATE MACHINE ════════ -->
+<section class="slide" data-section="§6 · Health & restart" data-title="HEALTHCHECK, state by state">
+  <div class="stage">
+    <p class="eyebrow">This Dockerfile's own HEALTHCHECK line</p>
+    <h2>starting → healthy or unhealthy, on a schedule you set</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 260" role="img" aria-label="A health check state machine. The container starts in a starting state for twenty seconds. Every thirty seconds a curl probe checks the health endpoint with a five second timeout. Three consecutive failures move the container to unhealthy, which is a signal to the restart policy rather than an automatic action by Docker itself.">
+        <rect class="s-box2" x="8" y="8" width="724" height="30"></rect>
+        <text class="t-m t-b" x="370" y="28" text-anchor="middle">HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl --fail http://127.0.0.1:8000/health</text>
+
+        <rect class="s-box" x="8" y="54" width="176" height="90"></rect>
+        <text class="t-xs" x="18" y="72">0s – 20s</text>
+        <text class="t-m t-b" x="18" y="94">starting</text>
+        <text class="t-ms" x="18" y="112">grace period — failures</text>
+        <text class="t-ms" x="18" y="126">here don't count yet</text>
+
+        <line class="s-line" x1="184" y1="98" x2="220" y2="98" marker-end="url(#t2ar3)"></line>
+
+        <rect class="s-box2" x="224" y="54" width="220" height="90"></rect>
+        <text class="t-xs" x="234" y="72">every 30s, 5s timeout</text>
+        <text class="t-m t-b" x="234" y="94">probing /health</text>
+        <text class="t-ms" x="234" y="112">curl --fail against the</text>
+        <text class="t-ms" x="234" y="126">Flask app's own endpoint</text>
+
+        <line class="s-keptl" x1="444" y1="86" x2="480" y2="70" marker-end="url(#t2ar3k)"></line>
+        <line class="s-dropl" x1="444" y1="110" x2="480" y2="126" marker-end="url(#t2ar3d)"></line>
+
+        <rect class="s-kept" x="484" y="34" width="248" height="52"></rect>
+        <text class="t-m t-b t-kept" x="494" y="56">healthy</text>
+        <text class="t-ms" x="494" y="74">docker inspect reports it — real readiness</text>
+
+        <rect class="s-drop" x="484" y="106" width="248" height="52"></rect>
+        <text class="t-m t-b t-drop" x="494" y="128">unhealthy</text>
+        <text class="t-ms" x="494" y="146">after 3 consecutive failed probes</text>
+
+        <line class="s-rule" x1="8" y1="164" x2="732" y2="164"></line>
+        <text class="t-s t-b" x="8" y="186">"Running" and "ready" are different claims.</text>
+        <text class="t-s" x="8" y="204">The health endpoint checks that DB_HOST, DB_PORT, DB_NAME, DB_USER and APP_SECRET_KEY are all present — a shallow "process exists" check would never catch a missing secret.</text>
+        <text class="t-s t-b" x="8" y="232">unhealthy is a signal, not an action.</text>
+        <text class="t-s" x="8" y="248">Docker itself does not restart on health status alone — that decision belongs to the restart policy, or to an orchestrator watching the same signal.</text>
+
+        <defs>
+          <marker id="t2ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="currentColor"></path></marker>
+          <marker id="t2ar3k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path></marker>
+          <marker id="t2ar3d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--drop)"></path></marker>
+        </defs>
+      </svg>
+      <figcaption>`unless-stopped` is a fine local-server default for what happens next — but an orchestrator like Kubernetes or Azure Container Apps replaces this entire restart-and-scheduling model with its own.</figcaption>
+    </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 21 · DEMO 6 ════════ -->
+<section class="slide slide--demo" data-section="§6 · Health & restart" data-title="DEMO · Inspect health and restart policy">
+  <div class="stage">
+    <span class="demo-badge">Demo 6 · two beats</span>
+    <h2>Read state off the container, not off a guess</h2>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat__n">1</div>
+        <div>
+          <p class="beat__t">Start it, wait past the start-period, then ask Docker for the health state directly.</p>
+          <div class="term"><span class="p">$</span> docker run -d --name health-demo --env-file .env -p 8000:8000 talk-02-runtime-config
+<span class="p">$</span> sleep 35
+<span class="p">$</span> docker inspect --format='{{json .State.Health}}' health-demo
+<span class="g">{"Status":"healthy","FailingStreak":0,
+ "Log":[{"ExitCode":0,"Output":"{\"status\": \"ok\", \"missing\": []}\n"}]}</span>
+<span class="c">                          ↑ container state, not just a running PID</span></div>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat__n">2</div>
+        <div>
+          <p class="beat__t">A restart policy is a separate, engine-level setting — check it the same way.</p>
+          <div class="term"><span class="p">$</span> docker run -d --name restart-demo --restart=unless-stopped --env-file .env talk-02-runtime-config
+<span class="p">$</span> docker inspect --format='{{.HostConfig.RestartPolicy.Name}}' restart-demo
+<span class="g">unless-stopped</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> stop <b>health-demo</b> and <b>restart-demo</b> with <b>docker rm -f</b> before moving on — both are long-running (no <b>--rm</b>), unlike most of the earlier demos.</p>
+  </div>
+</section>
+
+<!-- ════════ 22 · §7 DIVIDER ════════ -->
+<section class="slide slide--section" data-section="§7 · Resource limits" data-title="§7 Resource limits">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">7</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section seven</p>
+        <h2>The same two kernel<br>features from Talk 01, back again</h2>
+        <p class="lead">Namespaces limit what a process can see; cgroups limit what it can consume. <code>--memory</code> and <code>--cpus</code> are how you set those caps without touching a line of code.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 23 · CGROUPS / OOM ════════ -->
+<section class="slide" data-section="§7 · Resource limits" data-title="--memory, --cpus, and the OOM kill">
+  <div class="stage">
+    <p class="eyebrow">A limit is a promise to every other container on the host</p>
+    <h2>Exceed the memory cap, and the kernel ends the conversation</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 250" role="img" aria-label="A container capped at half a CPU core and 256 megabytes of memory. Staying under the caps is fine. Exceeding the memory cap causes the kernel to kill the process, which Docker reports as an out of memory termination and Kubernetes reports as OOMKilled.">
+        <rect class="s-acc" x="8" y="12" width="290" height="72"></rect>
+        <text class="t-xs t-acc" x="20" y="30">the container</text>
+        <text class="t-m t-b" x="20" y="54">PID 1 · python app.py</text>
+        <text class="t-ms" x="20" y="72">--memory=256m --cpus=0.5</text>
+
+        <rect class="s-box" x="330" y="12" width="402" height="130"></rect>
+        <text class="t-xs" x="342" y="30">cgroups — what it may consume</text>
+        <line class="s-rule" x1="342" y1="38" x2="718" y2="38"></line>
+
+        <text class="t-ms" x="342" y="62">CPU</text>
+        <text class="t-ms t-num" x="718" y="62" text-anchor="end">0.5 of N cores</text>
+        <rect class="s-box2" x="342" y="70" width="376" height="12"></rect>
+        <rect x="342" y="70" width="24" height="12" fill="var(--accent)"></rect>
+
+        <text class="t-ms" x="342" y="106">Memory</text>
+        <text class="t-ms t-num" x="718" y="106" text-anchor="end">256 MB cap</text>
+        <rect class="s-box2" x="342" y="114" width="376" height="12"></rect>
+        <rect x="342" y="114" width="200" height="12" fill="var(--accent)"></rect>
+        <text class="t-ms" x="342" y="138">Approaching the cap — still fine</text>
+
+        <line class="s-line" x1="153" y1="84" x2="153" y2="166" marker-end="url(#t2ar4)"></line>
+        <text class="t-ms t-drop" x="8" y="182">allocate past 256 MB and…</text>
+
+        <rect class="s-drop" x="8" y="192" width="724" height="50"></rect>
+        <text class="t-s t-b t-drop" x="20" y="212">the kernel kills the process — an OOM-style termination.</text>
+        <text class="t-s" x="20" y="230">Same mechanism as Talk 01's cgroups. In Kubernetes the identical event is surfaced as <tspan font-weight="600">OOMKilled</tspan>.</text>
+
+        <defs>
+          <marker id="t2ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--drop)"></path></marker>
+        </defs>
+      </svg>
+      <figcaption>Limits aren't there to punish your own container — they're a promise to every other container sharing the same host.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Expert aside ·</b> without limits, one noisy container can degrade the entire host — memory pressure and CPU starvation are shared-neighbour problems, not per-container ones. Limits make failure predictable instead of contagious.</p>
+  </div>
+</section>
+
+<!-- ════════ 24 · DEMO 7 ════════ -->
+<section class="slide slide--demo" data-section="§7 · Resource limits" data-title="DEMO · Run under a resource cap">
+  <div class="stage">
+    <span class="demo-badge">Demo 7</span>
+    <h2>Cap it, and watch nothing about the image need to change</h2>
+    <div class="term"><span class="p">$</span> docker run --rm --env-file .env --memory=256m --cpus=0.5 talk-02-runtime-config \
+    python -c 'import os; print("limited container pid", os.getpid())'
+<span class="g">limited container pid 1</span>
+<span class="c">                          ↑ same process, same image — now capped, no rebuild needed</span></div>
+    <p class="note"><b>Cue ·</b> if you have a moment to spare, deliberately allocate past 256 MB in a throwaway Python one-liner and let the room watch the container exit with code 137 — seeing the OOM kill happen live lands harder than describing it.</p>
+  </div>
+</section>
+
+<!-- ════════ 25 · §8 DIVIDER (BONUS) ════════ -->
+<section class="slide slide--section" data-section="§8 · Bonus — Podman" data-title="§8 Bonus — Podman">
+  <div class="stage">
+    <div class="sect">
+      <div class="sect__n">8</div>
+      <div class="sect__body">
+        <p class="eyebrow">Section eight · the bonus corner</p>
+        <h2>Same CLI shape.<br>No daemon. No root, by default.</h2>
+        <p class="lead">Podman's day-to-day commands are intentionally Docker-compatible — the two things that actually changed are the daemon and the privilege model.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 26 · DAEMON VS DAEMONLESS ════════ -->
+<section class="slide" data-section="§8 · Bonus — Podman" data-title="Daemon vs daemonless">
+  <div class="stage">
+    <p class="eyebrow">Familiar commands, different architecture underneath</p>
+    <h2>Podman removes the always-on, usually-root daemon entirely</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 740 260" role="img" aria-label="Docker's architecture runs the CLI talking to a long-lived root daemon, which talks to containerd and runc. Podman's CLI talks directly to the OCI runtime with no intervening daemon, and can run entirely as an unprivileged user via rootless mode.">
+        <text class="t-xs" x="8" y="16">docker</text>
+        <rect class="s-box" x="8" y="26" width="120" height="40"></rect>
+        <text class="t-m t-b" x="18" y="50">docker CLI</text>
+        <line class="s-line" x1="128" y1="46" x2="168" y2="46" marker-end="url(#t2ar5)"></line>
+        <rect class="s-drop" x="172" y="26" width="180" height="40"></rect>
+        <text class="t-m t-b" x="182" y="50">dockerd — a daemon</text>
+        <text class="t-ms t-drop" x="172" y="82">long-lived, typically root</text>
+        <line class="s-line" x1="352" y1="46" x2="392" y2="46" marker-end="url(#t2ar5)"></line>
+        <rect class="s-box" x="396" y="26" width="100" height="40"></rect>
+        <text class="t-ms" x="406" y="50">containerd</text>
+        <line class="s-line" x1="496" y1="46" x2="536" y2="46" marker-end="url(#t2ar5)"></line>
+        <rect class="s-box2" x="540" y="26" width="80" height="40"></rect>
+        <text class="t-ms" x="550" y="50">runc</text>
+
+        <line class="s-rule" x1="8" y1="106" x2="732" y2="106"></line>
+
+        <text class="t-xs t-kept" x="8" y="128">podman</text>
+        <rect class="s-kept" x="8" y="138" width="120" height="40"></rect>
+        <text class="t-m t-b" x="18" y="162">podman CLI</text>
+        <line class="s-keptl" x1="128" y1="158" x2="216" y2="158" marker-end="url(#t2ar5k)"></line>
+        <text class="t-ms t-kept" x="132" y="150" text-anchor="middle">no daemon</text>
+        <rect class="s-box2" x="220" y="138" width="100" height="40"></rect>
+        <text class="t-ms" x="230" y="162">runc / crun</text>
+        <text class="t-ms t-kept" x="8" y="198">rootless: runs as an unprivileged user, no daemon to grant broad access to</text>
+        <text class="t-ms" x="8" y="216">pods: group containers under one shared network namespace, like a Kubernetes pod</text>
+        <text class="t-ms" x="8" y="232">podman generate kube — export those pods straight to Kubernetes YAML</text>
+
+        <defs>
+          <marker id="t2ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="currentColor"></path></marker>
+          <marker id="t2ar5k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--kept)"></path></marker>
+        </defs>
+      </svg>
+      <figcaption>The command muscle memory mostly transfers — `podman build`, `podman run`, `podman push` all read the same as their Docker equivalents.</figcaption>
+    </figure>
+    </div>
+    <p class="note"><b>Expert aside ·</b> rootless Podman reduces dependence on a privileged central daemon. It does not remove every kernel-level risk, but it narrows the blast radius of a compromised container process because it runs under an unprivileged user namespace rather than as root.</p>
+  </div>
+</section>
+
+<!-- ════════ 27 · DEMO 8 (BONUS) ════════ -->
+<section class="slide slide--demo" data-section="§8 · Bonus — Podman" data-title="DEMO · Podman equivalents">
+  <div class="stage">
+    <span class="demo-badge">Demo 8 · bonus</span>
+    <h2>Run the comparison script and land on pods</h2>
+    <div class="term"><span class="p">$</span> bash bonus/podman-comparison.sh
+<span class="c">Podman vs Docker quick comparison
+
+Podman is daemonless and supports rootless containers as a first-class workflow.
+Many day-to-day commands are intentionally Docker-compatible.</span>
+
+podman run --rm -p 8000:8000 --env-file .env talk-02-runtime-config
+podman build -t talk-02-runtime-config .
+podman push talk-02-runtime-config quay.io/example/talk-02-runtime-config:latest
+
+<span class="c"># unique to Podman — pods:</span>
+<span class="g">podman pod create --name runtime-config-pod -p 8000:8000
+podman run -d --pod runtime-config-pod --env-file .env talk-02-runtime-config</span>
+
+<span class="c"># the bridge to Kubernetes:</span>
+<span class="g">podman generate kube runtime-config-pod &gt; podman-generated-pod.yaml</span></div>
+    <p class="note"><b>Cue ·</b> pause on the last two lines — a pod grouping containers under one shared network namespace is precisely the Kubernetes concept Talk 12 spends an hour on. <b>Podman unavailable?</b> skip straight to reading the script's output and explain the rootless/daemonless ideas from the speaker guide instead.</p>
+  </div>
+</section>
+
+<!-- ════════ 28 · DISCUSSION ════════ -->
+<section class="slide" data-section="Close" data-title="Discussion">
+  <div class="stage">
+    <p class="eyebrow">Over to you</p>
+    <h2>Five questions worth arguing about</h2>
+    <div class="cols cols--3">
+      <div class="card">
+        <span class="card__k">01 · boundaries</span>
+        <p>Which configuration values in your own services are safe image defaults, and which must be runtime-only?</p>
+      </div>
+      <div class="card card--acc">
+        <span class="card__k">02 · accountability</span>
+        <p>If a secret ever appears in <code>docker history</code>, what process actually failed — build design, review, or CI policy? Or all three?</p>
+      </div>
+      <div class="card">
+        <span class="card__k">03 · trade-offs</span>
+        <p>When would you choose a bind mount over a named volume, despite the host coupling it creates?</p>
+      </div>
+      <div class="card">
+        <span class="card__k">04 · operations</span>
+        <p>What does your platform actually use health checks for — readiness, restart decisions, load balancing, or release gates?</p>
+      </div>
+      <div class="card card--acc">
+        <span class="card__k">05 · incidents</span>
+        <p>How would your team explain the difference between Docker Desktop host networking and native Linux host networking, mid-incident?</p>
+      </div>
+    </div>
+    <p class="note"><b>Cue ·</b> 02 and 05 tend to generate the most disagreement, so hold them in reserve if the room is quiet. If nobody bites on 03, offer the concrete case: a debugging session where you want to see the file land on your own disk immediately.</p>
+  </div>
+</section>
+
+<!-- ════════ 29 · TAKEAWAYS ════════ -->
+<section class="slide" data-section="Close" data-title="Takeaways">
+  <div class="stage">
+    <p class="eyebrow">The close</p>
+    <h2>Six things to leave with</h2>
+    <div class="cols cols--2">
+      <ul class="list">
+        <li><span class="list__m">01</span><span>Build <strong>one reusable image</strong> and inject environment-specific configuration when the container starts — never rebuild for a config change.</span></li>
+        <li><span class="list__m">02</span><span><code>ARG</code> and <code>ENV</code> are not secret stores. BuildKit secret mounts are safer for build-time credentials, but they do not solve runtime secret management.</span></li>
+        <li><span class="list__m">03</span><span>A <strong>user-defined bridge network</strong> gives local containers useful DNS-based service discovery — the default bridge does not.</span></li>
+      </ul>
+      <ul class="list">
+        <li><span class="list__m">04</span><span>Bind mounts, named volumes, and <code>tmpfs</code> are <strong>different lifecycle choices</strong>, not interchangeable <code>-v</code> syntax.</span></li>
+        <li><span class="list__m">05</span><span>Health checks, restart policies, and resource limits are what turn <strong>a running container</strong> into <strong>an operable service</strong>.</span></li>
+        <li><span class="list__m">06</span><span>Podman is close enough for most Docker workflows day to day — <strong>rootless and daemonless</strong> are the real architectural differences underneath.</span></li>
+      </ul>
+    </div>
+    <div class="card card--kept">
+      <span class="card__k">If only one sentence survives the week</span>
+      <p><strong>The runtime contract is where operations, security, and portability meet:</strong> everything this talk covered was really just a different answer to "what does the container need to be handed at start-up, and by whom?"</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 30 · NEXT ════════ -->
+<section class="slide slide--title" data-section="Close" data-title="Next: Talk 03">
+  <div class="stage">
+    <p class="eyebrow">Next in the series</p>
+    <h1>Talk 03 — OCI artifacts<br>&amp; registries</h1>
+    <p class="lead">We have built an image and configured how it runs. Now we look at where it actually lives between those two moments: <strong>the OCI spec, ORAS, push/pull/attach/discover, registries, tagging strategies, and manifest lists</strong> — in R and Plumber, because none of this is language-specific either.</p>
+    <div class="title-meta">
+      <span>Language <b>R · Plumber</b></span>
+      <span>Bonus next time <b>Storing Wasm modules and ML models in OCI registries</b></span>
+      <span>This talk's code <b>talk-02-runtime-configuration/</b></span>
+    </div>
+    <p class="note"><b>Cue ·</b> to run this talk again: <b>RUNSHEET.md</b> for the commands, <b>notes/README.md</b> for the narrative, both keyed to these slide numbers. Cleanup block is at the bottom of the runsheet — run it so the next rehearsal is deterministic.</p>
+  </div>
+</section>
+</main>
+
+<footer class="rail rail--bottom">
+  <button class="navbtn" id="btnPrev" aria-label="Previous slide">← prev</button>
+  <button class="navbtn" id="btnNext" aria-label="Next slide">next →</button>
+  <span class="rail__spacer"></span>
+  <span class="ticks" id="ticks" role="tablist" aria-label="Jump to slide"></span>
+  <span class="rail__spacer"></span>
+  <button class="navbtn" id="btnNotes" aria-pressed="true" aria-label="Show or hide speaker cues">cues · N</button>
+  <button class="navbtn" id="btnOv" aria-label="Open slide index">index · O</button>
+  <span class="counter" id="counter">1 / 1</span>
+</footer>
+
+<div class="ov" id="ov" role="dialog" aria-modal="true" aria-label="Slide index">
+  <h2>Slide index</h2>
+  <p class="note" style="margin-top:0.5rem">Click a slide to jump. <span class="kbd">O</span> or <span class="kbd">Esc</span> closes this.</p>
+  <div class="ov__grid" id="ovGrid"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var slides  = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var ticksEl = document.getElementById("ticks");
+  var counter = document.getElementById("counter");
+  var sectEl  = document.getElementById("sectionLabel");
+  var ov      = document.getElementById("ov");
+  var ovGrid  = document.getElementById("ovGrid");
+  var current = 0;
+
+  // ── build ticks + index ──
+  slides.forEach(function (s, i) {
+    var t = document.createElement("button");
+    t.className = "ticks__t";
+    t.type = "button";
+    t.setAttribute("role", "tab");
+    t.setAttribute("aria-label", "Slide " + (i + 1) + ": " + (s.dataset.title || ""));
+    t.addEventListener("click", function () { go(i); });
+    ticksEl.appendChild(t);
+
+    var b = document.createElement("button");
+    b.className = "ov__i";
+    b.type = "button";
+    b.innerHTML = '<span class="n">' + String(i + 1).padStart(2, "0") + '</span><span class="s"></span>';
+    b.querySelector(".s").textContent = s.dataset.title || ("Slide " + (i + 1));
+    b.addEventListener("click", function () { go(i); closeOv(); });
+    ovGrid.appendChild(b);
+  });
+  var tickEls = Array.prototype.slice.call(ticksEl.children);
+  var ovEls   = Array.prototype.slice.call(ovGrid.children);
+
+  function render() {
+    slides.forEach(function (s, i) { s.classList.toggle("is-active", i === current); });
+    tickEls.forEach(function (t, i) {
+      if (i === current) { t.setAttribute("aria-current", "true"); }
+      else { t.removeAttribute("aria-current"); }
+      if (i <= current) { t.dataset.seen = "1"; }
+    });
+    ovEls.forEach(function (b, i) {
+      if (i === current) { b.setAttribute("aria-current", "true"); }
+      else { b.removeAttribute("aria-current"); }
+    });
+    counter.textContent = (current + 1) + " / " + slides.length;
+    sectEl.textContent = slides[current].dataset.section || "";
+    var active = slides[current];
+    if (active) { active.scrollTop = 0; }
+  }
+
+  function go(i, skipHash) {
+    current = Math.max(0, Math.min(slides.length - 1, i));
+    render();
+    if (!skipHash) {
+      var h = "#" + (current + 1);
+      if (window.location.hash !== h) {
+        history.replaceState(null, "", h);
+      }
+    }
+  }
+  function next() { if (current < slides.length - 1) { go(current + 1); } }
+  function prev() { if (current > 0) { go(current - 1); } }
+
+  function openOv()  { ov.classList.add("is-open"); }
+  function closeOv() { ov.classList.remove("is-open"); }
+  function toggleOv() { ov.classList.contains("is-open") ? closeOv() : openOv(); }
+
+  document.getElementById("btnNext").addEventListener("click", next);
+  document.getElementById("btnPrev").addEventListener("click", prev);
+  document.getElementById("btnOv").addEventListener("click", toggleOv);
+
+  // ── presenter cues + chrome ──
+  var btnNotes = document.getElementById("btnNotes");
+  function toggleNotes() {
+    var hidden = document.body.classList.toggle("hide-notes");
+    btnNotes.setAttribute("aria-pressed", hidden ? "false" : "true");
+  }
+  function toggleChrome() { document.body.classList.toggle("no-chrome"); }
+  btnNotes.addEventListener("click", toggleNotes);
+
+  document.addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) { return; }
+    var k = e.key;
+    if (ov.classList.contains("is-open")) {
+      if (k === "Escape" || k === "o" || k === "O") { e.preventDefault(); closeOv(); }
+      return;
+    }
+    switch (k) {
+      case "ArrowRight": case " ": case "PageDown": case "j":
+        e.preventDefault(); next(); break;
+      case "ArrowLeft": case "PageUp": case "p": case "k":
+        e.preventDefault(); prev(); break;
+      case "Home": e.preventDefault(); go(0); break;
+      case "End":  e.preventDefault(); go(slides.length - 1); break;
+      case "o": case "O": e.preventDefault(); openOv(); break;
+      case "n": case "N": e.preventDefault(); toggleNotes(); break;
+      case "c": case "C": e.preventDefault(); toggleChrome(); break;
+      default: break;
+    }
+  });
+
+  window.addEventListener("hashchange", function () {
+    var n = parseInt(window.location.hash.replace("#", ""), 10);
+    if (!isNaN(n) && n >= 1 && n <= slides.length && n - 1 !== current) { go(n - 1, true); }
+  });
+
+  var start = parseInt(window.location.hash.replace("#", ""), 10);
+  go(!isNaN(start) && start >= 1 ? start - 1 : 0, true);
+})();
+</script>

@@ -14,12 +14,34 @@ Run the same Flask image with realistic runtime configuration: environment varia
 - Optional: Podman for the bonus comparison.
 
 ## Folder map
+- **`slides/talk-02.html`** — the presentation: 30 slides, keyboard-driven, diagram-led. **Share this on screen.**
 - **`RUNSHEET.md`** — one-page cue card: run this talk cold in 10 minutes.
 - **`notes/`** — speaker guide (the teaching narrative — what to say).
 - **`src/`** — the Flask API used by the container image.
 - **`bonus/`** — Podman comparison commands and pod concepts.
 - **`run-examples.sh`** — printable command reference for the Docker demos.
 - **`certs/`** — save `netskope.crt` here if you're behind a TLS-intercepting proxy (optional).
+
+## How the three presenting artefacts line up
+
+All three use the **same slide numbers** as their index, so you never have to hunt for your place. The deck
+displays the slide number bottom-right and the section name top-right.
+
+| Deck slides | Section | Speaker guide | Runsheet |
+| --- | --- | --- | --- |
+| 1–2 | Opening and route map | Opening | — |
+| 3–6 | Config belongs outside the image | §1 | **Demo 1** (slide 6) |
+| 7–9 | Inline `-e` flags vs `--env-file` | §2 | **Demo 2** (slide 9) |
+| 10–12 | Build-time values and secret mounts | §3 | **Demo 3** (slide 12) |
+| 13–15 | Networking modes and service discovery | §4 | **Demo 4** (slide 15) |
+| 16–18 | Bind mounts, named volumes, tmpfs | §5 | **Demo 5** (slide 18) |
+| 19–21 | Health checks and restart policy | §6 | **Demo 6** (slide 21) |
+| 22–24 | Resource limits | §7 | **Demo 7** (slide 24) |
+| 25–27 | Bonus: Podman comparison | §8 | **Demo 8** (slide 27) |
+| 28–30 | Discussion, takeaways, handover | Closing | — |
+
+**Presenting cold?** Open `RUNSHEET.md`, work the pre-flight checklist, open `slides/talk-02.html` in a
+browser, and drive down the runsheet. It tells you which slide each command belongs to.
 
 ## Run it
 See **`RUNSHEET.md`** for the exact command sequence. Quick start:
