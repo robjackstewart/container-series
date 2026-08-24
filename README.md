@@ -15,7 +15,7 @@ Every talk separates **what you say** from **what you run**, so you never have s
 | Path | Purpose | When to open it |
 |------|---------|-----------------|
 | `README.md` | Slim index — what you'll learn, prerequisites, folder map | First, to orient yourself |
-| `slides/` | The presentation — a keyboard-driven, diagram-led HTML deck. Slide numbers are the shared index used by the runsheet and speaker guide | **Share this on screen** while presenting *(Talk 01 so far)* |
+| `slides/` | The presentation — a keyboard-driven, diagram-led HTML deck. Slide numbers are the shared index used by the runsheet and speaker guide | **Share this on screen** while presenting *(Talks 01–02 so far)* |
 | `RUNSHEET.md` | One-page cue card: pre-flight checklist, copy-paste commands, talking points, "if it breaks" recovery | On your **private** screen while presenting |
 | `notes/` | Speaker guide — the teaching narrative and "expert asides" (no command blocks) | When preparing, or on a private screen |
 | `certs/` | Drop a corporate CA `.crt` here if you're behind a TLS-intercepting proxy (empty by default) | Only behind Netskope-style proxies |
