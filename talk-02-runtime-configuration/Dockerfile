@@ -23,7 +23,7 @@ WORKDIR ${APP_HOME}
 # Omit --secret when not behind a proxy; the cert guard in each network RUN is a no-op.
 # -----------------------------------------------------------------------------
 
-RUN --mount=type=secret,id=netskope_cert <<'EOF'
+RUN --mount=type=secret,id=netskope_cert,required=false <<'EOF'
 set -e
 if [ -s /run/secrets/netskope_cert ]; then
   cp /etc/ssl/certs/ca-certificates.crt /tmp/ca-bundle.orig
