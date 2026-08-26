@@ -146,6 +146,9 @@ cat data/bind.txt   #  written straight onto this machine
 docker volume create mydata
 docker run --rm --env-file .env -v mydata:/app/data talk-02-runtime-config \
   python -c 'from pathlib import Path; Path("/app/data/volume.txt").write_text("named volume")'
+docker run --rm --env-file .env -v mydata:/app/data talk-02-runtime-config \
+  python -c 'from pathlib import Path; print(Path("/app/data/volume.txt").read_text())'
+#  Expect: named volume   ← a brand-new container, same volume, the data outlived the writer
 
 docker run --rm --env-file .env --tmpfs /tmp:size=100m talk-02-runtime-config \
   python -c 'from pathlib import Path; Path("/tmp/tmpfs.txt").write_text("tmpfs")'
@@ -205,6 +208,7 @@ Talk 12 spends an hour on.
 - **Port already in use** → stop old demo containers: `docker rm -f runtime-inline runtime-env-file runtime-api no-network-demo health-demo host-network-demo restart-demo`.
 - **`curl` is missing on Windows** → use Git Bash, WSL, or replace with `Invoke-RestMethod` in PowerShell.
 - **Host networking behaves oddly (slide 15, beat 2)** → explain that Docker Desktop runs containers inside a VM; native Linux host networking is the cleanest version of this demo.
+- **`ping: bad address 'runtime-api'` (slide 15, beat 1)** → this is a DNS problem, not Netskope/certs — Docker's embedded DNS (`127.0.0.11`) never touches the host proxy or TLS trust store. It means `runtime-api` was never registered because it never actually started. Check, in order: `docker ps -a --filter name=runtime-api` (did it start or exit?), `docker logs runtime-api` (why did it exit?), `docker images talk-02-runtime-config` (was the image ever built here?). Most common cause: `.env` doesn't exist yet — run `cp .env.example .env` (pre-flight) first.
 - **`head` is missing** → skip the history truncation and run `docker history --no-trunc talk-02-runtime-config`.
 - **Podman is unavailable (slide 27)** → skip the bonus script and explain the rootless/daemonless concepts from the speaker guide instead.
 - **Deck won't advance** → click once inside the deck first so it has keyboard focus; or use the on-screen `prev`/`next` buttons.

@@ -491,7 +491,7 @@ text { font-family:var(--font-body); fill:currentColor; }
         </div>
       </div>
     </div>
-    <p class="note"><b>Cue ·</b> ask the room to name one value in their own services that is currently a build-time default but should really be runtime-only. There is usually at least one.</p>
+    <p class="note"><b>Cue ·</b> most services carry at least one value that looks like a safe build-time default but should really be supplied at runtime — the <b>ENV</b> vs. build-secret boundary on this slide is exactly what separates the two.</p>
   </div>
 </section>
 
@@ -505,7 +505,7 @@ text { font-family:var(--font-body); fill:currentColor; }
         <div class="beat__n">1</div>
         <div>
           <p class="beat__t">Build with no certificate and no secret. It succeeds — the corporate CA hook is present but idle on a normal laptop.</p>
-          <div class="term"><span class="p">$</span> DOCKER_BUILDKIT=1 docker build -t talk-02-runtime-config .
+          <div class="term"><span class="p">PS&gt;</span> $env:DOCKER_BUILDKIT=1; docker build -t talk-02-runtime-config .
 <span class="g">=&gt; exporting to image
 =&gt; naming to docker.io/library/talk-02-runtime-config</span>          <span class="c">DONE</span></div>
         </div>
@@ -514,9 +514,9 @@ text { font-family:var(--font-body); fill:currentColor; }
         <div class="beat__n">2</div>
         <div>
           <p class="beat__t">Run it once, with a full set of inline <code>-e</code> flags for a development-shaped container.</p>
-          <div class="term"><span class="p">$</span> docker run -d --rm --name runtime-inline -p 8000:8000 \
-    -e DB_HOST=host.docker.internal -e DB_PORT=5432 -e DB_NAME=myapp \
-    -e DB_USER=myuser -e APP_SECRET_KEY=runtime-secret -e APP_ENV=development \
+          <div class="term"><span class="p">PS&gt;</span> docker run -d --rm --name runtime-inline -p 8000:8000 `
+    -e DB_HOST=host.docker.internal -e DB_PORT=5432 -e DB_NAME=myapp `
+    -e DB_USER=myuser -e APP_SECRET_KEY=runtime-secret -e APP_ENV=development `
     talk-02-runtime-config</div>
         </div>
       </div>
@@ -524,10 +524,10 @@ text { font-family:var(--font-body); fill:currentColor; }
         <div class="beat__n">3</div>
         <div>
           <p class="beat__t"><code>/health</code> reports every required variable present; <code>/config</code> proves the secret is configured without ever printing it.</p>
-          <div class="term"><span class="p">$</span> curl http://localhost:8000/health
+          <div class="term"><span class="p">PS&gt;</span> Invoke-RestMethod http://localhost:8000/health | ConvertTo-Json
 <span class="g">{"status": "ok", "missing": [], "environment": "development"}</span>
 
-<span class="p">$</span> curl http://localhost:8000/config
+<span class="p">PS&gt;</span> Invoke-RestMethod http://localhost:8000/config | ConvertTo-Json
 <span class="g">{"db_host": "host.docker.internal", "db_port": 5432, "db_name": "myapp",
  "db_user": "myuser", "app_env": "development",
  "app_secret_key_configured": </span><span class="g" style="font-weight:600">true</span><span class="g">}</span>
@@ -538,11 +538,11 @@ text { font-family:var(--font-body); fill:currentColor; }
         <div class="beat__n">4</div>
         <div>
           <p class="beat__t">Stop it. The image is untouched by anything that just happened.</p>
-          <div class="term"><span class="p">$</span> docker stop runtime-inline</div>
+          <div class="term"><span class="p">PS&gt;</span> docker stop runtime-inline</div>
         </div>
       </div>
     </div>
-    <p class="note"><b>Cue ·</b> narrate beat 2 out loud as you type it — every <b>-e</b> is a fact the image did not know at build time. That is the whole section, made concrete.</p>
+    <p class="note"><b>Cue ·</b> each <b>-e</b> flag is a fact the image did not know at build time. Beat 3's <b>/config</b> response proves the secret is configured without ever printing it — this demo is the whole section, made concrete.</p>
   </div>
 </section>
 
@@ -579,7 +579,7 @@ text { font-family:var(--font-body); fill:currentColor; }
         <p><code>.env.example</code> is safe sample configuration, committed to the repo. The real <code>.env</code> — with an actual secret key — stays local and <strong>gitignored</strong>, never committed.</p>
       </div>
     </div>
-    <p class="note"><b>Cue ·</b> this is a good moment to ask who in the room has a <b>.env</b> sitting in a repo right now. It happens even to careful teams, and it's why <b>.env.example</b> exists as the pattern to copy from, not from a real file.</p>
+    <p class="note"><b>Cue ·</b> a real <b>.env</b> ending up committed happens even to careful teams — which is exactly why <b>.env.example</b> exists as the safe pattern to copy from, never a real file.</p>
   </div>
 </section>
 
@@ -588,19 +588,18 @@ text { font-family:var(--font-body); fill:currentColor; }
   <div class="stage">
     <span class="demo-badge">Demo 2</span>
     <h2>The maintainable version, exercised against a real endpoint</h2>
-    <div class="term"><span class="p">$</span> docker run -d --rm --name runtime-env-file -p 8000:8000 --env-file .env talk-02-runtime-config
+    <div class="term"><span class="p">PS&gt;</span> docker run -d --rm --name runtime-env-file -p 8000:8000 --env-file .env talk-02-runtime-config
 
-<span class="p">$</span> curl http://localhost:8000/items
+<span class="p">PS&gt;</span> Invoke-RestMethod http://localhost:8000/items | ConvertTo-Json
 <span class="g">{"items": [
   {"id": 1, "name": "container-basics", "description": "Recap from Talk 1"},
   {"id": 2, "name": "runtime-config", "description": "Configuration is injected at runtime"}
  ], "count": 2, "database_target": "postgresql://myuser@localhost:5432/myapp"}</span>
 
-<span class="p">$</span> curl -X POST http://localhost:8000/items \
-    -H 'Content-Type: application/json' \
-    -d '{"name":"demo item","description":"created during the talk"}'
+<span class="p">PS&gt;</span> Invoke-RestMethod http://localhost:8000/items -Method Post -ContentType 'application/json' `
+    -Body '{"name":"demo item","description":"created during the talk"}' | ConvertTo-Json
 <span class="g">{"id": 3, "name": "demo item", "description": "created during the talk"}</span></div>
-    <p class="note"><b>Cue ·</b> point at <b>database_target</b> in the GET response — it's built entirely from env-file values, and swapping <b>.env</b> for a different file is the entire migration story between environments. No code change, no rebuild.</p>
+    <p class="note"><b>Cue ·</b> <b>database_target</b> in the GET response is built entirely from env-file values — swapping <b>.env</b> for a different file is the entire migration story between environments, with no code change and no rebuild.</p>
   </div>
 </section>
 
@@ -685,12 +684,13 @@ text { font-family:var(--font-body); fill:currentColor; }
   <div class="stage">
     <span class="demo-badge">Demo 3 · two beats</span>
     <h2>Mount a build secret, then check it never became a layer</h2>
+    <p class="lead">The <code>cat</code> itself isn't in question — it succeeds. What's tested is whether a file written and deleted before this <code>RUN</code> ends leaves any trace in the shipped image.</p>
     <div class="beats">
       <div class="beat">
         <div class="beat__n">1</div>
         <div>
           <p class="beat__t">Rebuild with a BuildKit secret supplying <code>secret.txt</code> to the one RUN step that asks for it.</p>
-          <div class="term"><span class="p">$</span> DOCKER_BUILDKIT=1 docker build --secret id=mysecret,src=secret.txt -t talk-02-runtime-config .
+          <div class="term"><span class="p">PS&gt;</span> $env:DOCKER_BUILDKIT=1; docker build --secret id=mysecret,src=secret.txt -t talk-02-runtime-config .
 <span class="g">=&gt; [6/8] RUN --mount=type=secret,id=mysecret,required=false …</span>   <span class="c">DONE</span></div>
         </div>
       </div>
@@ -698,7 +698,7 @@ text { font-family:var(--font-body); fill:currentColor; }
         <div class="beat__n">2</div>
         <div>
           <p class="beat__t">Inspect the full, untruncated history. The secret's contents appear nowhere.</p>
-          <div class="term"><span class="p">$</span> docker history --no-trunc talk-02-runtime-config | head
+          <div class="term"><span class="p">PS&gt;</span> docker history --no-trunc talk-02-runtime-config | Select-Object -First 10
 <span class="c">CREATED BY                                                          SIZE
 CMD ["gunicorn" "--chdir" "src" …]                                   0B
 HEALTHCHECK &amp;{["CMD-SHELL" "curl --fail --silent …"] "30s" …}        0B
@@ -711,7 +711,7 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
         </div>
       </div>
     </div>
-    <p class="note"><b>Cue ·</b> the Dockerfile's own comment is honest about this being a demo pattern — <b>cat /run/secrets/mysecret &gt; /tmp/secret_used.txt &amp;&amp; rm -f /tmp/secret_used.txt</b> inside one RUN. It's contrived on purpose, so the mechanism is unmistakable. <b>required=false</b> means the build also succeeds cleanly with no <b>--secret</b> at all — try it, and it just prints "No build secret supplied".</p>
+    <p class="note"><b>Cue ·</b> a layer is a diff taken once the whole <b>RUN</b> finishes — a file created and removed inside <b>cat /run/secrets/mysecret &gt; /tmp/secret_used.txt &amp;&amp; rm -f /tmp/secret_used.txt</b>, the same RUN, never gets committed at all. Do that same delete in a <em>separate, later</em> RUN instead and it would leak — recoverable from the earlier layer forever, exactly like Talk 01's "COPY it in" trap. None of this touches how the running app gets <b>APP_SECRET_KEY</b>; that's still a separate, runtime-only value. <b>required=false</b> means the build also succeeds cleanly with no <b>--secret</b> at all, printing "No build secret supplied" instead of failing.</p>
   </div>
 </section>
 
@@ -797,9 +797,9 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
         <div class="beat__n">1</div>
         <div>
           <p class="beat__t">A user-defined bridge, and a BusyBox container that finds the API by name alone.</p>
-          <div class="term"><span class="p">$</span> docker network create mynetwork
-<span class="p">$</span> docker run -d --rm --name runtime-api --network mynetwork --env-file .env -p 8000:8000 talk-02-runtime-config
-<span class="p">$</span> docker run --rm --network mynetwork busybox:1.36 ping -c 1 runtime-api
+          <div class="term"><span class="p">PS&gt;</span> docker network create mynetwork
+<span class="p">PS&gt;</span> docker run -d --rm --name runtime-api --network mynetwork --env-file .env -p 8000:8000 talk-02-runtime-config
+<span class="p">PS&gt;</span> docker run --rm --network mynetwork busybox:1.36 ping -c 1 runtime-api
 <span class="g">PING runtime-api (172.19.0.2): 56 data bytes
 64 bytes from 172.19.0.2: seq=0 ttl=64 time=0.087 ms</span>
 <span class="c">                          ↑ resolved by name — Docker's embedded DNS, not /etc/hosts</span></div>
@@ -809,7 +809,7 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
         <div class="beat__n">2</div>
         <div>
           <p class="beat__t">Host networking — call out the Docker Desktop VM caveat as you run it.</p>
-          <div class="term"><span class="p">$</span> docker run -d --rm --name host-network-demo --network=host --env-file .env talk-02-runtime-config
+          <div class="term"><span class="p">PS&gt;</span> docker run -d --rm --name host-network-demo --network=host --env-file .env talk-02-runtime-config
 <span class="c">                          ↑ on Docker Desktop, mediated by the VM; on native Linux, direct</span></div>
         </div>
       </div>
@@ -817,13 +817,13 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
         <div class="beat__n">3</div>
         <div>
           <p class="beat__t"><code>--network=none</code> — the process starts, and network assumptions surface immediately in the logs.</p>
-          <div class="term"><span class="p">$</span> docker run -d --rm --name no-network-demo --network=none --env-file .env talk-02-runtime-config
-<span class="p">$</span> docker logs no-network-demo | tail -n 5
+          <div class="term"><span class="p">PS&gt;</span> docker run -d --rm --name no-network-demo --network=none --env-file .env talk-02-runtime-config
+<span class="p">PS&gt;</span> docker logs no-network-demo | Select-Object -Last 5
 <span class="b">[gunicorn] worker booted — listening on 0.0.0.0:8000 (no route beyond loopback)</span></div>
         </div>
       </div>
     </div>
-    <p class="note"><b>Cue ·</b> tear the network down after beat 1 — <b>docker stop runtime-api; docker network rm mynetwork</b> — before moving to host/none so the port isn't double-bound.</p>
+    <p class="note"><b>Cue ·</b> beat 1 is the point of the section: only a user-defined bridge gives DNS-based service discovery — the ping resolves <b>runtime-api</b> by name, not IP. Beat 2 is the Docker Desktop VM caveat for host networking; beat 3 shows <b>--network=none</b> failing immediately, since there is no route beyond loopback.</p>
   </div>
 </section>
 
@@ -851,7 +851,7 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
       <svg viewBox="0 0 740 260" role="img" aria-label="Three storage options compared. A bind mount exposes a specific host path, transparent but coupled to that machine. A named volume is managed by the container engine and survives container replacement. tmpfs is memory-backed scratch space that never touches the writable layer and disappears when the container stops.">
         <text class="t-xs" x="8" y="16">bind mount</text>
         <rect class="s-box" x="8" y="26" width="228" height="30"></rect>
-        <text class="t-ms" x="18" y="46">-v $(pwd)/data:/app/data</text>
+        <text class="t-ms" x="18" y="46">-v ${PWD}\data:/app/data</text>
         <rect class="s-box2" x="8" y="64" width="228" height="94"></rect>
         <text class="t-s t-b" x="18" y="86">A host path, made visible.</text>
         <text class="t-ms" x="18" y="108">Transparent — you can find</text>
@@ -900,34 +900,37 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
         <div class="beat__n">1</div>
         <div>
           <p class="beat__t">Bind mount — the file lands directly on the host.</p>
-          <div class="term"><span class="p">$</span> mkdir -p data
-<span class="p">$</span> docker run --rm --env-file .env -v "$(pwd)/data:/app/data" talk-02-runtime-config \
+          <div class="term"><span class="p">PS&gt;</span> New-Item -ItemType Directory -Force data | Out-Null
+<span class="p">PS&gt;</span> docker run --rm --env-file .env -v "${PWD}\data:/app/data" talk-02-runtime-config `
     python -c 'from pathlib import Path; Path("/app/data/bind.txt").write_text("bind mount")'
-<span class="p">$</span> cat data/bind.txt
+<span class="p">PS&gt;</span> Get-Content data/bind.txt
 <span class="g">bind mount</span>   <span class="c">← written straight onto this machine</span></div>
         </div>
       </div>
       <div class="beat">
         <div class="beat__n">2</div>
         <div>
-          <p class="beat__t">Named volume — no host path to remember or clean up by hand.</p>
-          <div class="term"><span class="p">$</span> docker volume create mydata
-<span class="p">$</span> docker run --rm --env-file .env -v mydata:/app/data talk-02-runtime-config \
+          <p class="beat__t">Named volume — no host path to remember, and a completely different container can read it straight back.</p>
+          <div class="term"><span class="p">PS&gt;</span> docker volume create mydata
+<span class="p">PS&gt;</span> docker run --rm --env-file .env -v mydata:/app/data talk-02-runtime-config `
     python -c 'from pathlib import Path; Path("/app/data/volume.txt").write_text("named volume")'
-<span class="c">                          ↑ lives under Docker's managed storage instead</span></div>
+<span class="p">PS&gt;</span> docker run --rm --env-file .env -v mydata:/app/data talk-02-runtime-config `
+    python -c 'from pathlib import Path; print(Path("/app/data/volume.txt").read_text())'
+<span class="g">named volume</span>
+<span class="c">                          ↑ a brand-new container, same volume — the data outlived the one that wrote it</span></div>
         </div>
       </div>
       <div class="beat">
         <div class="beat__n">3</div>
         <div>
           <p class="beat__t">tmpfs — gone the moment this container exits.</p>
-          <div class="term"><span class="p">$</span> docker run --rm --env-file .env --tmpfs /tmp:size=100m talk-02-runtime-config \
+          <div class="term"><span class="p">PS&gt;</span> docker run --rm --env-file .env --tmpfs /tmp:size=100m talk-02-runtime-config `
     python -c 'from pathlib import Path; Path("/tmp/tmpfs.txt").write_text("tmpfs")'
 <span class="c">                          ↑ never touched disk; already gone now the container has stopped</span></div>
         </div>
       </div>
     </div>
-    <p class="note"><b>Cue ·</b> after beat 3, try to <b>cat</b> the tmpfs file from a fresh container mounting the same path — there is nothing there. That absence is the entire point, made visible.</p>
+    <p class="note"><b>Cue ·</b> a fresh container mounting the same tmpfs path afterwards would find nothing there — that absence, not a syntax difference, is the entire point of choosing tmpfs.</p>
   </div>
 </section>
 
@@ -1009,9 +1012,9 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
         <div class="beat__n">1</div>
         <div>
           <p class="beat__t">Start it, wait past the start-period, then ask Docker for the health state directly.</p>
-          <div class="term"><span class="p">$</span> docker run -d --name health-demo --env-file .env -p 8000:8000 talk-02-runtime-config
-<span class="p">$</span> sleep 35
-<span class="p">$</span> docker inspect --format='{{json .State.Health}}' health-demo
+          <div class="term"><span class="p">PS&gt;</span> docker run -d --name health-demo --env-file .env -p 8000:8000 talk-02-runtime-config
+<span class="p">PS&gt;</span> Start-Sleep -Seconds 35
+<span class="p">PS&gt;</span> docker inspect --format='{{json .State.Health}}' health-demo
 <span class="g">{"Status":"healthy","FailingStreak":0,
  "Log":[{"ExitCode":0,"Output":"{\"status\": \"ok\", \"missing\": []}\n"}]}</span>
 <span class="c">                          ↑ container state, not just a running PID</span></div>
@@ -1021,13 +1024,13 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
         <div class="beat__n">2</div>
         <div>
           <p class="beat__t">A restart policy is a separate, engine-level setting — check it the same way.</p>
-          <div class="term"><span class="p">$</span> docker run -d --name restart-demo --restart=unless-stopped --env-file .env talk-02-runtime-config
-<span class="p">$</span> docker inspect --format='{{.HostConfig.RestartPolicy.Name}}' restart-demo
+          <div class="term"><span class="p">PS&gt;</span> docker run -d --name restart-demo --restart=unless-stopped --env-file .env talk-02-runtime-config
+<span class="p">PS&gt;</span> docker inspect --format='{{.HostConfig.RestartPolicy.Name}}' restart-demo
 <span class="g">unless-stopped</span></div>
         </div>
       </div>
     </div>
-    <p class="note"><b>Cue ·</b> stop <b>health-demo</b> and <b>restart-demo</b> with <b>docker rm -f</b> before moving on — both are long-running (no <b>--rm</b>), unlike most of the earlier demos.</p>
+    <p class="note"><b>Cue ·</b> the point of both beats: <b>docker inspect</b> reads real container state — healthy or unhealthy — not just a running PID, and a restart policy is a separate, engine-level setting that Docker itself never ties to health status.</p>
   </div>
 </section>
 
@@ -1096,11 +1099,11 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
   <div class="stage">
     <span class="demo-badge">Demo 7</span>
     <h2>Cap it, and watch nothing about the image need to change</h2>
-    <div class="term"><span class="p">$</span> docker run --rm --env-file .env --memory=256m --cpus=0.5 talk-02-runtime-config \
+    <div class="term"><span class="p">PS&gt;</span> docker run --rm --env-file .env --memory=256m --cpus=0.5 talk-02-runtime-config `
     python -c 'import os; print("limited container pid", os.getpid())'
 <span class="g">limited container pid 1</span>
 <span class="c">                          ↑ same process, same image — now capped, no rebuild needed</span></div>
-    <p class="note"><b>Cue ·</b> if you have a moment to spare, deliberately allocate past 256 MB in a throwaway Python one-liner and let the room watch the container exit with code 137 — seeing the OOM kill happen live lands harder than describing it.</p>
+    <p class="note"><b>Cue ·</b> the point: the same image and process now run under a hard cap, with zero code change and no rebuild — resource limits are a runtime knob, not a build-time one. Exceeding the cap ends the same way as the previous slide's diagram: a kernel-level OOM kill, exit code 137.</p>
   </div>
 </section>
 
@@ -1170,7 +1173,8 @@ RUN |1 BUILDKIT_MOUNT… /bin/sh -c 'if [ -f /run/secrets/mysecret ]…  </span>
   <div class="stage">
     <span class="demo-badge">Demo 8 · bonus</span>
     <h2>Run the comparison script and land on pods</h2>
-    <div class="term"><span class="p">$</span> bash bonus/podman-comparison.sh
+    <div class="term"><span class="p">PS&gt;</span> bash bonus/podman-comparison.sh
+<span class="c">                          ↑ the script itself is bash — PS resolves it fine via Git Bash on PATH</span>
 <span class="c">Podman vs Docker quick comparison
 
 Podman is daemonless and supports rootless containers as a first-class workflow.
@@ -1186,7 +1190,7 @@ podman run -d --pod runtime-config-pod --env-file .env talk-02-runtime-config</s
 
 <span class="c"># the bridge to Kubernetes:</span>
 <span class="g">podman generate kube runtime-config-pod &gt; podman-generated-pod.yaml</span></div>
-    <p class="note"><b>Cue ·</b> pause on the last two lines — a pod grouping containers under one shared network namespace is precisely the Kubernetes concept Talk 12 spends an hour on. <b>Podman unavailable?</b> skip straight to reading the script's output and explain the rootless/daemonless ideas from the speaker guide instead.</p>
+    <p class="note"><b>Cue ·</b> the last two lines are the payoff: a pod grouping containers under one shared network namespace is precisely the Kubernetes concept Talk 12 spends an hour on, and <b>podman generate kube</b> is the literal bridge between the two.</p>
   </div>
 </section>
 
@@ -1217,7 +1221,7 @@ podman run -d --pod runtime-config-pod --env-file .env talk-02-runtime-config</s
         <p>How would your team explain the difference between Docker Desktop host networking and native Linux host networking, mid-incident?</p>
       </div>
     </div>
-    <p class="note"><b>Cue ·</b> 02 and 05 tend to generate the most disagreement, so hold them in reserve if the room is quiet. If nobody bites on 03, offer the concrete case: a debugging session where you want to see the file land on your own disk immediately.</p>
+    <p class="note"><b>Cue ·</b> 02 and 05 tend to generate the most disagreement, since they turn on accountability and platform-specific behaviour rather than opinion. 03's concrete case is a debugging session where seeing the file land on your own disk immediately outweighs the portability cost of a bind mount.</p>
   </div>
 </section>
 
@@ -1256,7 +1260,7 @@ podman run -d --pod runtime-config-pod --env-file .env talk-02-runtime-config</s
       <span>Bonus next time <b>Storing Wasm modules and ML models in OCI registries</b></span>
       <span>This talk's code <b>talk-02-runtime-configuration/</b></span>
     </div>
-    <p class="note"><b>Cue ·</b> to run this talk again: <b>RUNSHEET.md</b> for the commands, <b>notes/README.md</b> for the narrative, both keyed to these slide numbers. Cleanup block is at the bottom of the runsheet — run it so the next rehearsal is deterministic.</p>
+    <p class="note"><b>Cue ·</b> <b>RUNSHEET.md</b> carries the commands and <b>notes/README.md</b> carries the narrative, both keyed to these same slide numbers, so the deck and its supporting materials stay in lockstep.</p>
   </div>
 </section>
 </main>
